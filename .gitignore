@@ -1,0 +1,47 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+
+# ── Data files (large CSVs / Excel — do not commit raw scraped data) ──────────
+data/raw/*.csv
+data/registry/*.csv
+output/*.xlsx
+output/*.csv
+*.xlsx
+*.csv
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Secrets / credentials ─────────────────────────────────────────────────────
+.env
+*.key
+secrets.yaml
+credentials*.json
+
+# ── IDE / OS ──────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Playwright ────────────────────────────────────────────────────────────────
+playwright-report/
+test-results/

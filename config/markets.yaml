@@ -1,0 +1,96 @@
+# Market normalization map
+# Maps URL city slugs (from maac.com sitemap etc.) to canonical market labels.
+# Rule: simple city/metro names, not full MSA codes.
+
+slug_to_market:
+  # Alabama
+  birmingham: "Birmingham"
+  gulf-shores-orange-beach: "Gulf Shores"
+  huntsville: "Huntsville"
+
+  # Arizona
+  phoenix: "Phoenix"
+
+  # Colorado
+  denver: "Denver"
+
+  # District of Columbia
+  washington-dc: "Washington DC"
+
+  # Florida
+  coral-springs: "South Florida"
+  gainesville: "Gainesville"
+  jacksonville: "Jacksonville"
+  orlando: "Orlando"
+  panama-city-beach: "Panama City Beach"
+  tallahassee: "Tallahassee"
+  tampa: "Tampa"
+
+  # Georgia
+  atlanta: "Atlanta"
+  savannah: "Savannah"
+
+  # Kansas
+  olathe: "Kansas City"
+  overland-park: "Kansas City"
+
+  # Kentucky
+  lexington: "Lexington"
+  louisville: "Louisville"
+
+  # Maryland
+  rockville: "Washington DC"
+  hyattsville: "Washington DC"
+
+  # Missouri
+  kansas-city: "Kansas City"
+
+  # Nevada
+  las-vegas: "Las Vegas"
+
+  # North Carolina
+  charlotte: "Charlotte"
+  durham: "Durham"
+  raleigh-cary: "Raleigh"
+
+  # South Carolina
+  charleston: "Charleston"
+  columbia: "Columbia"
+  greenville: "Greenville"
+
+  # Tennessee
+  chattanooga: "Chattanooga"
+  memphis: "Memphis"
+  nashville: "Nashville"
+
+  # Texas
+  austin: "Austin"
+  dallas-fort-worth: "Dallas"
+  houston: "Houston"
+  san-antonio: "San Antonio"
+
+  # Utah
+  salt-lake-city: "Salt Lake City"
+
+  # Virginia
+  charlottesville: "Charlottesville"
+  chesapeake: "Hampton Roads"
+  dc-metro: "Washington DC"
+  fredericksburg: "Washington DC"
+  hampton: "Hampton Roads"
+  newport-news: "Hampton Roads"
+  richmond: "Richmond"
+
+  # California (ESS)
+  los-angeles: "Los Angeles"
+  san-francisco: "San Francisco"
+  san-jose: "San Jose"
+  seattle: "Seattle"
+  portland: "Portland"
+  orange-county: "Orange County"
+  san-diego: "San Diego"
+
+  # Other common slugs
+  bay-area: "San Francisco"
+  east-bay: "San Francisco"
+  south-bay: "San Jose"

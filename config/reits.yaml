@@ -1,0 +1,85 @@
+# Per-REIT configuration
+# Fields: sitemap_url, base_url, scraper_module, render_type, notes
+
+reits:
+
+  MAA:
+    name: "Mid-America Apartment Communities"
+    ticker: MAA
+    base_url: "https://www.maac.com"
+    sitemap_url: "https://www.maac.com/sitemap.xml"
+    community_url_pattern: "/{state}/{city}/{slug}/"  # 3-segment path
+    render_type: static_html   # requests + BeautifulSoup, no JS needed
+    scraper_module: scrapers.maa
+    backend: rentcafe           # RentCafe-powered, propertyId embedded in page
+    selectors:
+      unit_container: "div.available-apartments__body--apt"
+      unit_number: ".unit"
+      price: "span.price[style]"
+      detail_list: "div.apt-details ul li"
+      amenities: ".apt-amenities"
+      concession_badge: ".special-offer-btn"
+      concession_text: ".move-in-special-wrapper .move-in-special p"
+      property_name: ".property-information h1"
+      property_address: "#property-address"
+    notes: >
+      Address anchor href contains lat/lon as center= param.
+      Floor plan code embedded in amenities string (e.g. 11C-FP).
+      Zip code not present in address anchor on most pages; lat/lon available.
+      Concession is community-level; unit badge flags which units are eligible.
+
+  CPT:
+    name: "Camden Property Trust"
+    ticker: CPT
+    base_url: "https://www.camdenliving.com"
+    render_type: tbd
+    scraper_module: scrapers.cpt
+    notes: "Phase 2"
+
+  EQR:
+    name: "Equity Residential"
+    ticker: EQR
+    base_url: "https://www.equityapartments.com"
+    render_type: tbd
+    scraper_module: scrapers.eqr
+    notes: "Phase 2"
+
+  AVB:
+    name: "AvalonBay Communities"
+    ticker: AVB
+    base_url: "https://www.avaloncommunities.com"
+    render_type: tbd
+    scraper_module: scrapers.avb
+    notes: "Phase 2"
+
+  INVH:
+    name: "Invitation Homes"
+    ticker: INVH
+    base_url: "https://www.invitationhomes.com"
+    render_type: tbd
+    scraper_module: scrapers.invh
+    notes: "Phase 2 — SFR, different data model"
+
+  AMH:
+    name: "American Homes 4 Rent"
+    ticker: AMH
+    base_url: "https://www.amh.com"
+    render_type: tbd
+    scraper_module: scrapers.amh
+    notes: "Phase 2 — SFR, different data model"
+
+  UDR:
+    name: "UDR, Inc."
+    ticker: UDR
+    base_url: "https://www.udr.com"
+    render_type: tbd
+    scraper_module: scrapers.udr
+    notes: "Phase 2"
+
+  ESS:
+    name: "Essex Property Trust"
+    ticker: ESS
+    base_url: "https://www.essexapartmenthomes.com"
+    render_type: tbd
+    scraper_module: scrapers.ess
+    notes: "Phase 2 — West Coast only"
