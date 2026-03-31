@@ -16,13 +16,10 @@ venv/
 env/
 .env/
 
-# ── Data files (large CSVs / Excel — do not commit raw scraped data) ──────────
-data/raw/*.csv
-data/registry/*.csv
+# ── Data files — CSVs tracked (private repo); Excel outputs excluded ──────────
 output/*.xlsx
 output/*.csv
 *.xlsx
-*.csv
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 logs/
