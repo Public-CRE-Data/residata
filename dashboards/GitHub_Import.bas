@@ -15,7 +15,7 @@
 
 Private Const GITHUB_TOKEN  As String = "PASTE_YOUR_FINE_GRAINED_PAT_HERE"
 Private Const GITHUB_OWNER  As String = "Public-CRE-Data"
-Private Const GITHUB_REPO   As String = "Resi-REIT-Scrapes"
+Private Const GITHUB_REPO   As String = "residata"
 Private Const SCRAPE_DATE   As String = "2026-03-31"   ' update each week
 
 ' Available REIT files (add INVH once its run completes)
