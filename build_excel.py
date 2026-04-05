@@ -631,59 +631,70 @@ REIT_COLORS = {
     "AMH":  "17BECF",  # teal
 }
 
-# Market colors (used in any multi-market chart)
+# Market colors — designed so markets in the SAME REGION (same chart) are
+# maximally distinct from each other. Ordered by typical listing count
+# within each region so the top 5 always contrast well.
 MARKET_COLORS = {
+    # SOUTHEAST — red/blue/green/orange/purple spread
     "Atlanta":              "D62728",  # red
-    "Dallas/Fort Worth":    "1F77B4",  # blue
-    "Houston":              "FF7F0E",  # orange
+    "Charlotte":            "1F77B4",  # blue
+    "Raleigh/Durham":       "2CA02C",  # green
+    "Nashville":            "FF7F0E",  # orange
+    "Charleston":           "9467BD",  # purple
+    "Jacksonville":         "17BECF",  # teal
+    "Savannah":             "E377C2",  # pink
+    "Greenville":           "8C564B",  # brown
+    "Richmond":             "BCBD22",  # olive
+    "Memphis":              "7F7F7F",  # gray
+    "Birmingham":           "393B79",  # dark blue
+    "Huntsville":           "E6550D",  # burnt orange
+    "Hampton Roads":        "6B6ECF",  # periwinkle
+    "Chattanooga":          "843C39",  # dark red
+    "Charlottesville":      "637939",  # dark olive
+    "Louisville":           "7B4173",  # plum
+
+    # SOUTHWEST — same spread, distinct from each other
+    "Dallas/Fort Worth":    "D62728",  # red
+    "Houston":              "1F77B4",  # blue
     "Phoenix":              "2CA02C",  # green
-    "Tampa":                "9467BD",  # purple
-    "Orlando":              "8C564B",  # brown
-    "Charlotte":            "E377C2",  # pink
-    "Nashville":            "7F7F7F",  # gray
-    "Raleigh/Durham":       "BCBD22",  # olive
-    "Austin":               "17BECF",  # teal
-    "Denver":               "AEC7E8",  # light blue
-    "Miami/Fort Lauderdale":"FF9896",  # salmon
-    "Washington, DC":       "003B70",  # navy
-    "New York":             "393B79",  # dark blue
-    "Boston":               "637939",  # dark olive
-    "San Francisco":        "8C6D31",  # dark gold
-    "San Jose":             "843C39",  # dark red
-    "Los Angeles":          "7B4173",  # plum
-    "San Diego":            "5254A3",  # indigo
-    "Seattle":              "6B6ECF",  # periwinkle
-    "Orange County":        "E7969C",  # light rose
-    "San Francisco-East Bay":"B5CF6B", # lime
-    "Jacksonville":         "CE6DBD",  # orchid
-    "Charleston":           "DE9ED6",  # lavender
-    "Savannah":             "D6616B",  # dark salmon
-    "Las Vegas":            "E7BA52",  # gold
-    "Portland":             "3182BD",  # medium blue
-    "Salt Lake City":       "6BAED6",  # sky blue
-    "Inland Empire":        "FD8D3C",  # dark orange
-    "San Antonio":          "FDAE6B",  # light orange
-    "Philadelphia":         "31A354",  # forest green
-    "Baltimore":            "74C476",  # medium green
-    "Richmond":             "756BB1",  # medium purple
-    "Greenville":           "9E9AC8",  # light purple
-    "Memphis":              "636363",  # dark gray
-    "Birmingham":           "969696",  # medium gray
-    "Huntsville":           "BDBDBD",  # light gray
-    "Chicago":              "E6550D",  # burnt orange
-    "Minneapolis":          "A1D99B",  # mint
-    "Kansas City":          "C7E9C0",  # pale green
-    "Hampton Roads":        "DADAEB",  # pale lavender
-    "Chattanooga":          "9C9EDE",  # blue-gray
-    "Gainesville":          "CEDB9C",  # sage
-    "Tallahassee":          "E7CB94",  # tan
-    "Gulf Shores":          "F7B6D2",  # light pink
-    "Panama City Beach":    "FDD0A2",  # peach
-    "Charlottesville":      "C49C94",  # dusty rose
-    "Louisville":           "C5B0D5",  # thistle
-    "Colorado Springs":     "98DF8A",  # light green
-    "Santa Barbara":        "DBDB8D",  # khaki
-    "Salinas/Monterey":     "ADB5BD",  # blue-gray
+    "Austin":               "FF7F0E",  # orange
+    "Denver":               "9467BD",  # purple
+    "San Antonio":          "17BECF",  # teal
+    "Las Vegas":            "E377C2",  # pink
+    "Salt Lake City":       "8C564B",  # brown
+    "Colorado Springs":     "BCBD22",  # olive
+
+    # FLORIDA — same spread
+    "Tampa":                "D62728",  # red
+    "Orlando":              "1F77B4",  # blue
+    "Miami/Fort Lauderdale":"2CA02C",  # green
+    "Gulf Shores":          "FF7F0E",  # orange
+    "Tallahassee":          "9467BD",  # purple
+    "Gainesville":          "17BECF",  # teal
+    "Panama City Beach":    "E377C2",  # pink
+
+    # EAST COAST — same spread
+    "Washington, DC":       "D62728",  # red
+    "New York":             "1F77B4",  # blue
+    "Boston":               "2CA02C",  # green
+    "Philadelphia":         "FF7F0E",  # orange
+    "Baltimore":            "9467BD",  # purple
+    "Chicago":              "17BECF",  # teal
+    "Minneapolis":          "E377C2",  # pink
+    "Kansas City":          "8C564B",  # brown
+
+    # WEST COAST — same spread
+    "Los Angeles":          "D62728",  # red
+    "Seattle":              "1F77B4",  # blue
+    "San Francisco-East Bay":"2CA02C", # green
+    "San Diego":            "FF7F0E",  # orange
+    "Orange County":        "9467BD",  # purple
+    "San Jose":             "17BECF",  # teal
+    "San Francisco":        "E377C2",  # pink
+    "Inland Empire":        "8C564B",  # brown
+    "Portland":             "BCBD22",  # olive
+    "Santa Barbara":        "7F7F7F",  # gray
+    "Salinas/Monterey":     "393B79",  # dark blue
 }
 
 # Fallback palette for anything not in the dicts above
