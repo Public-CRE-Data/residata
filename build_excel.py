@@ -310,7 +310,7 @@ MACRO_MAP = {
     "Newton": "Boston", "Waltham": "Boston", "Watertown MA": "Boston",
     "Watertown": "Boston", "Malden": "Boston", "Medford": "Boston",
     "Woburn": "Boston", "Burlington MA": "Boston", "Burlington": "Boston",
-    "Lexington MA": "Boston", "Lexington": "Boston", "Needham": "Boston",
+    "Lexington MA": "Boston", "Needham": "Boston",
     "Acton": "Boston", "Andover": "Boston", "Bedford MA": "Boston",
     "Beverly": "Boston", "Canton MA": "Boston", "Chelmsford": "Boston",
     "Danvers": "Boston", "Dracut": "Boston", "Framingham": "Boston",
@@ -396,6 +396,8 @@ MACRO_MAP = {
     "Salinas": "Salinas/Monterey", "Monterey CA": "Salinas/Monterey",
     "Santa Cruz": "Salinas/Monterey",
     "Louisville": "Louisville",
+    "Lexington": "Lexington",  # Lexington KY (MAA) — NOT Lexington MA (Boston)
+    "Lexington KY": "Lexington",
     "Santa Barbara": "Santa Barbara", "Goleta": "Santa Barbara",
     "Ventura": "Santa Barbara", "Oxnard": "Santa Barbara",
     "Camarillo": "Santa Barbara",
@@ -652,6 +654,7 @@ MARKET_COLORS = {
     "Chattanooga":          "843C39",  # dark red
     "Charlottesville":      "637939",  # dark olive
     "Louisville":           "7B4173",  # plum
+    "Lexington":            "E7BA52",  # gold
 
     # SOUTHWEST — same spread, distinct from each other
     "Dallas/Fort Worth":    "D62728",  # red
@@ -2262,7 +2265,7 @@ REGION_MAP = {}
 
 _SOUTHEAST = ["Atlanta", "Charlotte", "Raleigh/Durham", "Nashville", "Charleston",
               "Jacksonville", "Savannah", "Greenville", "Birmingham", "Huntsville",
-              "Memphis", "Chattanooga", "Richmond", "Hampton Roads", "Charlottesville", "Louisville"]
+              "Memphis", "Chattanooga", "Richmond", "Hampton Roads", "Charlottesville", "Louisville", "Lexington"]
 _SOUTHWEST = ["Dallas/Fort Worth", "Houston", "Austin", "San Antonio", "Phoenix",
               "Denver", "Las Vegas", "Salt Lake City", "Colorado Springs"]
 _FLORIDA = ["Miami/Fort Lauderdale", "Orlando", "Tampa", "Gulf Shores", "Tallahassee",
