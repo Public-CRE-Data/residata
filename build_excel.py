@@ -375,7 +375,8 @@ MACRO_MAP = {
     "Rancho Cucamonga": "Inland Empire", "Fontana": "Inland Empire",
     "Moreno Valley": "Inland Empire",
     "Memphis": "Memphis",
-    "Richmond": "Richmond", "Richmond VA": "Richmond",
+    "Richmond VA": "Richmond",
+    "Richmond CA": "San Francisco-East Bay",
     "Henrico": "Richmond", "Chesterfield VA": "Richmond",
     "Savannah": "Savannah",
     "Birmingham": "Birmingham", "Hoover AL": "Birmingham",
@@ -1159,6 +1160,17 @@ def apply_macro_map(df):
         return df
 
     df["macro_market"] = df["market"].apply(_resolve_macro_market)
+
+    # REIT-aware overrides for ambiguous bare city names
+    # "Richmond" = Richmond VA for everyone EXCEPT ESS (Richmond CA = East Bay)
+    if "reit" in df.columns:
+        # ESS Richmond -> San Francisco-East Bay (Richmond CA)
+        mask_ess_richmond = (df["reit"] == "ESS") & (df["market"] == "Richmond")
+        df.loc[mask_ess_richmond, "macro_market"] = "San Francisco-East Bay"
+
+        # Bare "Richmond" for non-ESS -> Richmond VA
+        mask_other_richmond = (df["reit"] != "ESS") & (df["market"] == "Richmond") & (df["macro_market"] == "Other")
+        df.loc[mask_other_richmond, "macro_market"] = "Richmond"
 
     # Report unmapped markets
     other_mask = df["macro_market"] == "Other"
