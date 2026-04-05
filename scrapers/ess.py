@@ -288,15 +288,16 @@ def _scrape_community(page, comm: dict) -> list[dict]:
         comm_name = comm_slug.replace("-", " ").title()
 
     # Community-level concession banner
+    # ESS displays offers in .property-offer-cta / .property-offer-content
+    # elements (NOT inside individual floor-plan cards, which are always empty).
     comm_concession = None
     try:
-        # Common banner selectors in Essex CMS
+        # Primary: property-offer-cta headline + details (the actual offer banner)
         for sel in [
-            ".floor-plan-card__special-offer",
-            ".community-header [class*='special']",
-            "[class*='special-offer']",
-            "[class*='promo-banner']",
-            ".special-offer",
+            ".property-offer-content__details",       # full offer details text
+            ".property-offer-cta__link",              # offer headline link
+            ".property-offer-content__headline",      # offer headline (alt)
+            ".property-offer-cta__headline",          # headline wrapper
         ]:
             el = page.query_selector(sel)
             if el:
@@ -305,7 +306,21 @@ def _scrape_community(page, comm: dict) -> list[dict]:
                 if comm_concession:
                     break
 
-        # Also scan the header text for concession keywords
+        # Fallback: legacy selectors
+        if not comm_concession:
+            for sel in [
+                ".floor-plan-card__special-offer",
+                "[class*='special-offer']",
+                "[class*='promo-banner']",
+            ]:
+                el = page.query_selector(sel)
+                if el:
+                    txt = (el.inner_text() or "").strip()
+                    comm_concession = _filter_concession(txt)
+                    if comm_concession:
+                        break
+
+        # Fallback: scan the header text for concession keywords
         if not comm_concession:
             header = page.query_selector(".community-header")
             if header:
