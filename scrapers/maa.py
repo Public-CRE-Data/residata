@@ -64,16 +64,46 @@ _MARKET_MAP = _load_market_map()
 
 # ── Concession parsing engine ──────────────────────────────────────────────────
 
-# Months/weeks free: "1 month free", "6 weeks free", "up to one month free"
+# Deposit/fee waivers — NOT rent concessions
+# "Go deposit free with Rhino", "Special security deposit offer: ...",
+# "reduced processing fees"
+_DEPOSIT_EXCLUSION_RE = re.compile(
+    r"\b(deposit[\s\-]?free|rhino|deposit\s+waiver|waive.*deposit"
+    r"|no\s+deposit|zero\s+deposit|security\s+deposit\s+offer"
+    r"|processing\s+fee|application\s+fee|admin\s+fee"
+    r"|reduced\s+processing)\b",
+    re.IGNORECASE,
+)
+
+# Months/weeks free: "1 month free", "6 weeks free", "up to one month free",
+#   "Save 2 weeks off rent!", "Save One Month off rent!", "half a month free",
+#   "1/2 month free", "2.5 months off rent", "half month off rent"
 _WORD_TO_NUM = {
     "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
     "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "half": 0.5, "a half": 0.5,
 }
 _MONTHS_FREE_RE = re.compile(
-    r"(?:up\s+to\s+)?(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten)"
-    r"\s*(month|week)['\u2019]?s?\s+free",
+    r"(?:up\s+to\s+)?(?:a\s+)?"
+    r"(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|half|1/2)"
+    r"\s*(?:a\s+)?"
+    r"(month|week|MONTH|WEEK)['\u2019]?s?\s+(?:free|off\b)",
     re.IGNORECASE,
 )
+# "half a month free" / "half month free" / "Half Month rent" — alternate word order
+_HALF_MONTH_RE = re.compile(
+    r"\b(?:a\s+)?half\s+(?:a\s+)?month(?:'s)?\s+(?:free|off|rent)\b",
+    re.IGNORECASE,
+)
+
+# Fractional rent off for N months: "1/2 off rent for the first 4 months"
+# This is (fraction × rent × N_months) total concession
+_FRAC_MONTHS_RE = re.compile(
+    r"(1/2|half|50\s*%)\s+(?:off\s+)?(?:of\s+)?rent\s+(?:for\s+)?(?:the\s+)?(?:first\s+)?"
+    r"(\d+)\s*month",
+    re.IGNORECASE,
+)
+
 # Dollar off: "$1,000 off", "save $750", "save—$1000", "save $ 600", "reduced $150",
 #             "reduced -$100", "$1500 in savings", "1500 in savings"
 _DOLLAR_OFF_RE = re.compile(
@@ -82,10 +112,10 @@ _DOLLAR_OFF_RE = re.compile(
     r"|(?<!\d)([\d,]{3,}(?:\.\d+)?)(?!\s*%)\s+in\s+savings",
     re.IGNORECASE,
 )
-# Percent off: "10% off", "1/2 off", "half off", "50% discount"
+# Percent off: "10% off", "50% discount"
+# Note: "1/2 off" and "half off" without "month/rent" context are handled separately
 _PERCENT_OFF_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*%\s*(?:off|discount)"
-    r"|(?:^|\s)(1/2|half)\s+off",
+    r"(\d+(?:\.\d+)?)\s*%\s*(?:off|discount)",
     re.IGNORECASE,
 )
 # Date-based free rent with day: "no rent until May 15", "free until April 30"
@@ -96,15 +126,30 @@ _DATE_FREE_RE = re.compile(
 # Month-name free variants:
 #   "for April free", "for May free"         (whole calendar month)
 #   "no rent until April", "free until April" (month-only, no day number)
+#   "1/2 May and June free"                  (fractional calendar months)
 _MONTH_FREE_RE = re.compile(
     r"(?:\bfor\s+|\buntil\s+)(January|February|March|April|May|June|July|August"
     r"|September|October|November|December)(?:\s+\w+)?\s*(?:free\b|[!.,]|$)",
+    re.IGNORECASE,
+)
+# "1/2 May and June free", "1/2 April free"
+_FRAC_NAMED_MONTHS_RE = re.compile(
+    r"(1/2|half)\s+(January|February|March|April|May|June|July|August"
+    r"|September|October|November|December)"
+    r"(?:\s+and\s+(January|February|March|April|May|June|July|August"
+    r"|September|October|November|December))?\s*(?:free|!)",
     re.IGNORECASE,
 )
 # Soft-only markers (no quantity)
 _SOFT_ONLY_RE = re.compile(
     r"\b(call\s+for\s+specials|look\s+(?:and|&)\s+lease|limited\s+time"
     r"|ask\s+about|contact\s+us|special\s+offer)\b",
+    re.IGNORECASE,
+)
+# Non-rent promos — tag as has_concession=False
+_NON_RENT_PROMO_RE = re.compile(
+    r"\b(move\s+in\s+now|apply\s+today|available\s+for\s+immediate"
+    r"|ready\s+for\s+you|now\s+available)\b",
     re.IGNORECASE,
 )
 
@@ -133,13 +178,86 @@ def parse_concession(
         return nulls
 
     text = raw.strip()
+
+    # ── Deposit/fee waivers are NOT rent concessions ────────────────────
+    # e.g. "Go deposit free with Rhino", "security deposit offer", "processing fees"
+    # If the ONLY content is a deposit/fee waiver, return nulls.
+    _hard_patterns = [_MONTHS_FREE_RE, _HALF_MONTH_RE, _FRAC_MONTHS_RE,
+                      _DOLLAR_OFF_RE, _PERCENT_OFF_RE, _DATE_FREE_RE,
+                      _MONTH_FREE_RE, _FRAC_NAMED_MONTHS_RE]
+    if _DEPOSIT_EXCLUSION_RE.search(text) and not any(
+        p.search(text) for p in _hard_patterns
+    ):
+        return nulls
+
+    # ── Non-rent promos (move-in urgency, no actual concession) ──────────
+    if not any(p.search(text) for p in _hard_patterns) and _NON_RENT_PROMO_RE.search(text):
+        return nulls
+
     result = {**nulls, "has_concession": True, "concession_raw": text}
+
+    # ── fractional rent off for N months ─────────────────────────────────
+    # "1/2 off rent for the first 4 months" → 50% × 4 months = 2 months-equivalent
+    m = _FRAC_MONTHS_RE.search(text)
+    if m:
+        frac = 0.5  # "1/2", "half", "50%"
+        n_months = int(m.group(2))
+        months_equiv = frac * n_months
+        result["concession_hardness"] = ConcessionHardness.hard.value
+        result["concession_type"] = ConcessionType.months_free.value
+        result["concession_value"] = months_equiv
+        concession_dollars = rent * months_equiv
+        result["concession_pct_lease_value"] = round(
+            concession_dollars / (rent * lease_months) * 100, 2
+        )
+        result["concession_pct_lease_term"] = round(months_equiv / lease_months * 100, 2)
+        result["effective_monthly_rent"] = round(
+            rent * (lease_months - months_equiv) / lease_months, 2
+        )
+        return result
+
+    # ── fractional named months: "1/2 May and June free" ─────────────────
+    m = _FRAC_NAMED_MONTHS_RE.search(text)
+    if m:
+        n_months = 2 if m.group(3) else 1  # "May and June" vs just "May"
+        months_equiv = 0.5 * n_months
+        result["concession_hardness"] = ConcessionHardness.hard.value
+        result["concession_type"] = ConcessionType.months_free.value
+        result["concession_value"] = months_equiv
+        concession_dollars = rent * months_equiv
+        result["concession_pct_lease_value"] = round(
+            concession_dollars / (rent * lease_months) * 100, 2
+        )
+        result["concession_pct_lease_term"] = round(months_equiv / lease_months * 100, 2)
+        result["effective_monthly_rent"] = round(
+            rent * (lease_months - months_equiv) / lease_months, 2
+        )
+        return result
+
+    # ── "half a month free" / "half month off" ───────────────────────────
+    if _HALF_MONTH_RE.search(text):
+        qty = 0.5
+        result["concession_hardness"] = ConcessionHardness.hard.value
+        result["concession_type"] = ConcessionType.months_free.value
+        result["concession_value"] = qty
+        concession_dollars = rent * qty
+        result["concession_pct_lease_value"] = round(
+            concession_dollars / (rent * lease_months) * 100, 2
+        )
+        result["concession_pct_lease_term"] = round(qty / lease_months * 100, 2)
+        result["effective_monthly_rent"] = round(
+            rent * (lease_months - qty) / lease_months, 2
+        )
+        return result
 
     # ── months/weeks free ─────────────────────────────────────────────────
     m = _MONTHS_FREE_RE.search(text)
     if m:
         qty_raw = m.group(1).lower()
-        qty = float(_WORD_TO_NUM.get(qty_raw, qty_raw))
+        if qty_raw == "1/2":
+            qty = 0.5
+        else:
+            qty = float(_WORD_TO_NUM.get(qty_raw, qty_raw))
         unit = m.group(2).lower()
         if unit.startswith("week"):
             qty = round(qty / 4.333, 4)   # convert weeks → months

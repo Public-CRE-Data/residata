@@ -1094,6 +1094,38 @@ def build_panel(file_list):
     print(f"  Panel: {len(panel):,} rows, {n_periods} period(s) [{period_labels}], "
           f"{panel['reit'].nunique()} REIT(s)")
 
+    # ── Re-parse concession_raw with latest parse_concession() logic ────
+    # Historical CSVs may have been scraped with older parser versions that
+    # (a) tagged deposit waivers as concessions, (b) missed "half month free",
+    # "X weeks off rent", etc.  Re-parsing from concession_raw ensures all
+    # periods use identical classification, making WoW/same-prop comparable.
+    try:
+        from scrapers.maa import parse_concession
+        conc_fields = ["has_concession", "concession_hardness", "concession_type",
+                        "concession_value", "concession_pct_lease_value",
+                        "concession_pct_lease_term", "effective_monthly_rent"]
+        mask_has_raw = panel["concession_raw"].notna() & (panel["concession_raw"] != "")
+        reparsed = 0
+        for idx in panel.loc[mask_has_raw].index:
+            raw = panel.at[idx, "concession_raw"]
+            rent = panel.at[idx, "rent"]
+            if pd.isna(rent) or rent <= 0:
+                continue
+            parsed = parse_concession(raw, float(rent))
+            for field in conc_fields:
+                panel.at[idx, field] = parsed[field]
+            # Keep original concession_raw regardless of parsing result
+            panel.at[idx, "concession_raw"] = raw
+            reparsed += 1
+        # Also ensure rows WITHOUT concession_raw have correct defaults
+        mask_no_raw = panel["concession_raw"].isna() | (panel["concession_raw"] == "")
+        panel.loc[mask_no_raw, "has_concession"] = False
+        for field in conc_fields[1:]:  # skip has_concession
+            panel.loc[mask_no_raw, field] = None
+        print(f"  [RE-PARSE] Re-parsed {reparsed:,} concession_raw values with latest parser logic.")
+    except ImportError:
+        print("  [WARN] Could not import parse_concession — using CSV values as-is.")
+
     # ── ESS concession fix: week 1 data was scraped with a bug that missed
     # the property-offer-cta DOM element. Null out concession fields for ESS
     # on the earliest period so they're excluded from all comparisons.
@@ -1111,6 +1143,24 @@ def build_panel(file_list):
                 panel.loc[ess_first_mask, col] = None
         print(f"  [FIX] Nulled ESS concession fields for first period ({panel['scrape_date'].min().date()}) "
               f"— {ess_first_mask.sum():,} rows. Scraper bug (fixed week 2).")
+
+    # ── UDR concession fix: week 1 (earliest period) scraper stored ONLY
+    # "Go deposit free with Rhino." even for units that had real concessions,
+    # overwriting the actual concession text.  51% of deposit-tagged units
+    # show real concessions 4 days later — confirming data loss, not organic
+    # ramp.  Null out UDR week 1 concession fields (rent data is valid).
+    udr_first_mask = (panel["reit"] == "UDR") & (panel["scrape_date"] == panel["scrape_date"].min())
+    if udr_first_mask.any():
+        if "has_concession" in panel.columns:
+            panel["has_concession"] = panel["has_concession"].astype("object")
+        conc_cols = ["has_concession", "concession_hardness", "concession_raw",
+                     "concession_type", "concession_value", "concession_pct_lease_value",
+                     "concession_pct_lease_term", "effective_monthly_rent"]
+        for col in conc_cols:
+            if col in panel.columns:
+                panel.loc[udr_first_mask, col] = None
+        print(f"  [FIX] Nulled UDR concession fields for first period ({panel['scrape_date'].min().date()}) "
+              f"— {udr_first_mask.sum():,} rows. Old scraper overwrote real concessions with deposit text.")
 
     return panel
 
@@ -1234,6 +1284,31 @@ def compute_same_property(df):
                 axis=1,
             )
 
+        # ── NER composition-bias fix ─────────────────────────────────────
+        # Only include units with non-null effective_monthly_rent in BOTH
+        # periods when computing NER same-property metrics.  Without this,
+        # different subsets inflate/deflate apparent NER changes.
+        prev_ner_ids = set(
+            prev_sp.loc[prev_sp["effective_monthly_rent"].notna(), "unit_id"]
+        )
+        curr_ner_ids = set(
+            curr_sp.loc[curr_sp["effective_monthly_rent"].notna(), "unit_id"]
+        )
+        ner_both_ids = prev_ner_ids & curr_ner_ids
+
+        prev_sp["_eff_rent_matched"] = prev_sp.apply(
+            lambda r: r["effective_monthly_rent"] if r["unit_id"] in ner_both_ids else None, axis=1
+        )
+        prev_sp["_eff_rent_psf_matched"] = prev_sp.apply(
+            lambda r: r["_eff_rent_psf"] if r["unit_id"] in ner_both_ids else None, axis=1
+        )
+        curr_sp["_eff_rent_matched"] = curr_sp.apply(
+            lambda r: r["effective_monthly_rent"] if r["unit_id"] in ner_both_ids else None, axis=1
+        )
+        curr_sp["_eff_rent_psf_matched"] = curr_sp.apply(
+            lambda r: r["_eff_rent_psf"] if r["unit_id"] in ner_both_ids else None, axis=1
+        )
+
         # Group by REIT x macro_market x beds
         key_cols = ["reit", "macro_market", "beds"]
 
@@ -1242,8 +1317,8 @@ def compute_same_property(df):
             sp_concession_rate_prev=("has_concession", "mean"),
             sp_count_prev=("unit_id", "count"),
             sp_avg_rent_psf_prev=("_rent_psf", "mean"),
-            sp_avg_eff_rent_prev=("effective_monthly_rent", "mean"),
-            sp_avg_eff_rent_psf_prev=("_eff_rent_psf", "mean"),
+            sp_avg_eff_rent_prev=("_eff_rent_matched", "mean"),
+            sp_avg_eff_rent_psf_prev=("_eff_rent_psf_matched", "mean"),
         ).reset_index()
 
         curr_grp = curr_sp.groupby(key_cols, dropna=False).agg(
@@ -1251,8 +1326,8 @@ def compute_same_property(df):
             sp_concession_rate_curr=("has_concession", "mean"),
             sp_count_curr=("unit_id", "count"),
             sp_avg_rent_psf_curr=("_rent_psf", "mean"),
-            sp_avg_eff_rent_curr=("effective_monthly_rent", "mean"),
-            sp_avg_eff_rent_psf_curr=("_eff_rent_psf", "mean"),
+            sp_avg_eff_rent_curr=("_eff_rent_matched", "mean"),
+            sp_avg_eff_rent_psf_curr=("_eff_rent_psf_matched", "mean"),
         ).reset_index()
 
         merged = pd.merge(prev_grp, curr_grp, on=key_cols, how="inner")
@@ -1926,24 +2001,28 @@ def build_charts_concessions_sheet(wb, df):
 def _build_sp_index_from_history(summary_history_df, sp_df, metric_curr, metric_prev):
     """
     Build a pivot index (base=100) from summary_history or sp_df for a given metric.
+    Uses COUNT-WEIGHTED averaging across market × bed groups to avoid small-group
+    distortion (e.g. a 10-unit market shouldn't equal-weight a 500-unit market).
     Returns (pivot_index_df, reits_list) or (None, []).
     """
     pivot_index = None
     reits = sorted(sp_df["reit"].dropna().unique()) if not sp_df.empty else []
 
     if (summary_history_df is not None and not summary_history_df.empty
-            and metric_curr in summary_history_df.columns):
+            and metric_curr in summary_history_df.columns
+            and "sp_count" in summary_history_df.columns):
         hist = summary_history_df.copy()
         hist_sp = hist.dropna(subset=[metric_curr])
         if not hist_sp.empty:
-            hist_rent = (
-                hist_sp.groupby(["reit", "scrape_date"])[metric_curr]
-                .mean().reset_index()
-                .rename(columns={"scrape_date": "date", metric_curr: "val"})
-            )
-            hist_rent = hist_rent.sort_values("date")
-            pivot_raw = hist_rent.pivot(index="date", columns="reit", values="val")
-            # Only use summary_history if it has >= 2 dates; otherwise fall through to sp_df
+            # Count-weighted average: sum(metric * count) / sum(count)
+            hist_sp = hist_sp.copy()
+            hist_sp["_weighted"] = hist_sp[metric_curr] * hist_sp["sp_count"]
+            weighted = hist_sp.groupby(["reit", "scrape_date"]).agg(
+                _wsum=("_weighted", "sum"), _csum=("sp_count", "sum")
+            ).reset_index()
+            weighted["val"] = weighted["_wsum"] / weighted["_csum"]
+            weighted = weighted.rename(columns={"scrape_date": "date"}).sort_values("date")
+            pivot_raw = weighted.pivot(index="date", columns="reit", values="val")
             if len(pivot_raw) >= 2:
                 pivot_index = pivot_raw.copy()
                 for col in pivot_index.columns:
@@ -1953,25 +2032,36 @@ def _build_sp_index_from_history(summary_history_df, sp_df, metric_curr, metric_
                 return pivot_index, list(pivot_index.columns)
 
     if not sp_df.empty and metric_curr in sp_df.columns and metric_prev in sp_df.columns:
-        first_prev = sp_df["date_prev"].min()
-        base = (
-            sp_df[sp_df["date_prev"] == first_prev]
-            .groupby("reit")[metric_prev].mean().reset_index()
-            .rename(columns={metric_prev: "val"})
-        )
-        base["date"] = first_prev
-        curr_part = (
-            sp_df.groupby(["reit", "date_curr"])[metric_curr].mean().reset_index()
-            .rename(columns={"date_curr": "date", metric_curr: "val"})
-        )
-        combined = pd.concat([base, curr_part], ignore_index=True).sort_values("date")
-        pivot_raw = combined.pivot(index="date", columns="reit", values="val")
-        pivot_index = pivot_raw.copy()
-        for col in pivot_index.columns:
-            first_val = pivot_index[col].dropna().iloc[0] if not pivot_index[col].dropna().empty else None
-            if first_val and first_val != 0:
-                pivot_index[col] = (pivot_index[col] / first_val * 100).round(2)
-        return pivot_index, reits
+        # Count-weighted from sp_df
+        sp = sp_df.dropna(subset=[metric_curr, metric_prev]).copy()
+        if not sp.empty:
+            first_prev = sp["date_prev"].min()
+
+            # Base period
+            base_sp = sp[sp["date_prev"] == first_prev].copy()
+            base_sp["_w"] = base_sp[metric_prev] * base_sp["sp_count"]
+            base_agg = base_sp.groupby("reit").agg(_wsum=("_w", "sum"), _csum=("sp_count", "sum")).reset_index()
+            base_agg["val"] = base_agg["_wsum"] / base_agg["_csum"]
+            base_agg["date"] = first_prev
+
+            # Current periods
+            sp["_w"] = sp[metric_curr] * sp["sp_count"]
+            curr_agg = sp.groupby(["reit", "date_curr"]).agg(
+                _wsum=("_w", "sum"), _csum=("sp_count", "sum")
+            ).reset_index()
+            curr_agg["val"] = curr_agg["_wsum"] / curr_agg["_csum"]
+            curr_agg = curr_agg.rename(columns={"date_curr": "date"})
+
+            combined = pd.concat([base_agg[["reit", "date", "val"]],
+                                  curr_agg[["reit", "date", "val"]]], ignore_index=True)
+            combined = combined.sort_values("date")
+            pivot_raw = combined.pivot(index="date", columns="reit", values="val")
+            pivot_index = pivot_raw.copy()
+            for col in pivot_index.columns:
+                first_val = pivot_index[col].dropna().iloc[0] if not pivot_index[col].dropna().empty else None
+                if first_val and first_val != 0:
+                    pivot_index[col] = (pivot_index[col] / first_val * 100).round(2)
+            return pivot_index, reits
 
     return None, reits
 
@@ -2206,12 +2296,63 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
 
     n_rent_rows = len(pivot_rent)
 
+    # ── Same-Property Avg NER by REIT (raw $) ─────────────────────────────
+    ner_start = rent_start + n_rent_rows + 3
+    ws.cell(row=ner_start - 1, column=1,
+            value="Same-Property Avg Net Effective Rent by REIT ($)").font = SUBHEAD_FONT
+    ws.cell(row=ner_start - 1, column=4,
+            value="CALC: Count-weighted avg NER across all same-property units with NER in BOTH periods. "
+                  "NER = asking rent minus concession value spread over lease term.").font = legend_font
+
+    # Build count-weighted NER per REIT per date from sp_df
+    sp_ner = sp_df.dropna(subset=["sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev"]).copy()
+    if not sp_ner.empty:
+        # Base: weighted avg of prev NER
+        sp_ner["_w_prev"] = sp_ner["sp_avg_eff_rent_prev"] * sp_ner["sp_count"]
+        sp_ner["_w_curr"] = sp_ner["sp_avg_eff_rent_curr"] * sp_ner["sp_count"]
+
+        base_ner = sp_ner[sp_ner["date_prev"] == sp_ner["date_prev"].min()].groupby("reit").agg(
+            _ws=("_w_prev", "sum"), _cs=("sp_count", "sum")).reset_index()
+        base_ner["avg_ner"] = base_ner["_ws"] / base_ner["_cs"]
+        base_ner["date"] = sp_ner["date_prev"].min()
+
+        curr_ner = sp_ner.groupby(["reit", "date_curr"]).agg(
+            _ws=("_w_curr", "sum"), _cs=("sp_count", "sum")).reset_index()
+        curr_ner["avg_ner"] = curr_ner["_ws"] / curr_ner["_cs"]
+        curr_ner = curr_ner.rename(columns={"date_curr": "date"})
+
+        combined_ner = pd.concat([base_ner[["reit", "date", "avg_ner"]],
+                                  curr_ner[["reit", "date", "avg_ner"]]], ignore_index=True)
+        combined_ner = combined_ner.sort_values("date")
+        pivot_ner = combined_ner.pivot(index="date", columns="reit", values="avg_ner")
+
+        ner_hdr = ["Date"] + list(pivot_ner.columns)
+        write_header_row(ws, ner_start, ner_hdr)
+        for col_idx in range(2, len(ner_hdr) + 1):
+            ws.cell(row=ner_start, column=col_idx).comment = Comment(
+                "Count-weighted avg NER ($) for matched same-property units on this date.", "build_excel.py")
+
+        for i, (dt, row_series) in enumerate(pivot_ner.iterrows()):
+            r = ner_start + 1 + i
+            row_vals = [str(dt)[:10]] + [
+                round(float(row_series[c]), 0) if pd.notna(row_series.get(c)) else None
+                for c in pivot_ner.columns
+            ]
+            ner_fmts = [None] + [NUM_CURRENCY] * len(pivot_ner.columns)
+            write_data_row(ws, r, row_vals, alt=(i % 2 == 1), number_formats=ner_fmts)
+
+        n_ner_rows = len(pivot_ner)
+    else:
+        ws.cell(row=ner_start, column=1,
+                value="No NER data available.").font = Font(name="Arial", italic=True, color="888888", size=10)
+        n_ner_rows = 1
+
     # ──────────────────────────────────────────────────────────────────────
     # INDEX SECTIONS — 4 total: Gross Rent, Gross Rent PSF, Net Eff Rent, Net Eff Rent PSF
-    # ─────────────────────────────────���────────────────────────────────────
+    # ──────────────────────────────────────────────────────────────────────
 
     # 1. Gross Asking Rent Index
-    idx_start = rent_start + n_rent_rows + 3
+    idx_start = ner_start + n_ner_rows + 3
     pi_rent, _ = _build_sp_index_from_history(
         summary_history_df, sp_df, "sp_avg_rent_curr", "sp_avg_rent_prev")
     next_row = _write_index_section(
@@ -2339,10 +2480,46 @@ def _compute_market_rent_psf_index(summary_history_df, sp_df, reit, market):
     return []
 
 
+def _compute_market_ner_psf_index(summary_history_df, sp_df, reit, market):
+    """
+    Compute indexed NET EFFECTIVE rent PSF (base=100) time series for a single REIT+market.
+    Returns list of (date_str, index_value) or empty list.
+    """
+    if (summary_history_df is not None and not summary_history_df.empty
+            and "sp_avg_eff_rent_psf_curr" in summary_history_df.columns):
+        hist = summary_history_df.copy()
+        mask = (hist["reit"] == reit) & (hist["macro_market"] == market)
+        sub = hist.loc[mask].dropna(subset=["sp_avg_eff_rent_psf_curr"])
+        if not sub.empty:
+            by_date = sub.groupby("scrape_date")["sp_avg_eff_rent_psf_curr"].mean().sort_index()
+            if len(by_date) >= 2:
+                base = by_date.iloc[0]
+                if base and base != 0:
+                    return [(str(d), round(v / base * 100, 2)) for d, v in by_date.items()]
+    # Fallback to sp_df
+    if not sp_df.empty and "sp_avg_eff_rent_psf_curr" in sp_df.columns:
+        sub = sp_df[(sp_df["reit"] == reit) & (sp_df["macro_market"] == market)]
+        if not sub.empty:
+            sub_ner = sub.dropna(subset=["sp_avg_eff_rent_psf_prev", "sp_avg_eff_rent_psf_curr"])
+            if not sub_ner.empty:
+                first_prev = sub_ner["date_prev"].min()
+                base_val = sub_ner[sub_ner["date_prev"] == first_prev]["sp_avg_eff_rent_psf_prev"].mean()
+                if pd.notna(base_val) and base_val != 0:
+                    result = [(str(first_prev)[:10], 100.0)]
+                    for _, grp in sub_ner.groupby("date_curr"):
+                        d = str(grp["date_curr"].iloc[0])[:10]
+                        v = grp["sp_avg_eff_rent_psf_curr"].mean()
+                        if pd.notna(v):
+                            result.append((d, round(v / base_val * 100, 2)))
+                    return result
+    return []
+
+
 def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
     """
     For each REIT with data, create a {REIT}_Markets sheet with indexed rent PSF
-    by market, grouped by region with line charts.
+    by market, grouped by region with line charts — on BOTH gross asking rent
+    and net effective rent bases.
     """
     latest = df["scrape_date"].max()
     df_latest = df[df["scrape_date"] == latest].copy()
@@ -2370,8 +2547,6 @@ def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
             ws.cell(row=1, column=1, value=f"{reit} -- No market data available").font = TITLE_FONT
             sheets_created.append(sheet_name)
             continue
-
-        add_title(ws, f"{reit} -- Same-Property Rent Index by Market (Base = 100)", row=1)
 
         if not has_trends:
             # Week 1 fallback: show current avg rent PSF by market
@@ -2403,7 +2578,7 @@ def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
             sheets_created.append(sheet_name)
             continue
 
-        # Build index data for each market
+        # Build index data for each market — GROSS rent PSF
         all_dates = set()
         market_index_data = {}  # market -> {date: index}
         for mkt in reit_markets:
@@ -2412,76 +2587,117 @@ def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
                 market_index_data[mkt] = {d: v for d, v in ts}
                 all_dates.update(d for d, _ in ts)
 
-        if not all_dates:
+        # Build index data for each market — NET EFFECTIVE rent PSF
+        ner_all_dates = set()
+        market_ner_index_data = {}
+        for mkt in reit_markets:
+            ts = _compute_market_ner_psf_index(summary_history_df, sp_df, reit, mkt)
+            if ts:
+                market_ner_index_data[mkt] = {d: v for d, v in ts}
+                ner_all_dates.update(d for d, _ in ts)
+
+        if not all_dates and not ner_all_dates:
             ws.cell(row=3, column=1,
                     value="No same-property rent PSF data available yet.").font = legend_font
             sheets_created.append(sheet_name)
             continue
 
-        sorted_dates = sorted(all_dates)
-        markets_with_data = [m for m in reit_markets if m in market_index_data]
+        # ── Helper to write one set of index tables + charts ──────────────
+        def _write_index_section(ws, start_row, label_prefix, index_data, date_set, chart_suffix):
+            """Write full table + region charts for one index type. Returns next available row."""
+            sorted_dates_sec = sorted(date_set)
+            mkts_sec = [m for m in reit_markets if m in index_data]
+            if not mkts_sec or not sorted_dates_sec:
+                return start_row
 
-        # Write full table
-        tbl_hdr = ["Date"] + markets_with_data
-        write_header_row(ws, 3, tbl_hdr)
-        for i, d in enumerate(sorted_dates):
-            row_vals = [d] + [market_index_data[m].get(d) for m in markets_with_data]
-            write_data_row(ws, 4 + i, row_vals, alt=(i % 2 == 1))
+            # Full table
+            tbl_hdr = ["Date"] + mkts_sec
+            write_header_row(ws, start_row, tbl_hdr)
+            for i, d in enumerate(sorted_dates_sec):
+                row_vals = [d] + [index_data[m].get(d) for m in mkts_sec]
+                write_data_row(ws, start_row + 1 + i, row_vals, alt=(i % 2 == 1))
 
-        n_tbl_rows = len(sorted_dates)
+            n_tbl_rows = len(sorted_dates_sec)
+            cur = start_row + 1 + n_tbl_rows + 1
 
-        # Charts by region
-        current_row = 4 + n_tbl_rows + 2
-        region_markets = {}
-        for mkt in markets_with_data:
-            region = REGION_MAP.get(mkt, "Other")
-            region_markets.setdefault(region, []).append(mkt)
+            # Charts by region
+            region_mkt_map = {}
+            for mkt in mkts_sec:
+                region = REGION_MAP.get(mkt, "Other")
+                region_mkt_map.setdefault(region, []).append(mkt)
 
-        for region_name in ["Southeast", "Southwest", "Florida", "East Coast", "West Coast", "Other"]:
-            mkts = region_markets.get(region_name, [])
-            if not mkts:
-                continue
+            for region_name in ["Southeast", "Southwest", "Florida", "East Coast", "West Coast", "Other"]:
+                mkts_r = region_mkt_map.get(region_name, [])
+                if not mkts_r:
+                    continue
+                mkt_order = [m for m in reit_markets if m in mkts_r and m in index_data][:5]
+                if not mkt_order:
+                    continue
 
-            # Top 5 by listing count
-            mkt_order = [m for m in reit_markets if m in mkts and m in market_index_data][:5]
-            if not mkt_order:
-                continue
+                ws.cell(row=cur, column=1,
+                        value=f"{reit} -- {region_name} Markets ({label_prefix})").font = SUBHEAD_FONT
+                cur += 1
 
-            # Write mini table for chart
+                mini_hdr = ["Date"] + mkt_order
+                write_header_row(ws, cur, mini_hdr)
+                for i, d in enumerate(sorted_dates_sec):
+                    row_vals = [d] + [index_data[m].get(d) for m in mkt_order]
+                    write_data_row(ws, cur + 1 + i, row_vals, alt=(i % 2 == 1))
+
+                n_mini = len(sorted_dates_sec)
+
+                if n_mini >= 2 and len(mkt_order) > 0:
+                    chart = LineChart()
+                    chart.title = f"{reit} -- {region_name}, {chart_suffix}"
+                    chart.y_axis.title = "Index"
+                    chart.x_axis.title = "Date"
+                    chart.style = 10
+                    chart.width = 24
+                    chart.height = 14
+
+                    data_ref = Reference(ws, min_col=2, max_col=1 + len(mkt_order),
+                                         min_row=cur, max_row=cur + n_mini)
+                    cats_ref = Reference(ws, min_col=1,
+                                         min_row=cur + 1, max_row=cur + n_mini)
+                    chart.add_data(data_ref, titles_from_data=True)
+                    chart.set_categories(cats_ref)
+                    _apply_series_colors(chart, mkt_order, MARKET_COLORS)
+                    ws.add_chart(chart, f"A{cur + n_mini + 2}")
+                    cur = cur + n_mini + 2 + 18
+                else:
+                    cur = cur + n_mini + 3
+
+            return cur
+
+        # ── GROSS ASKING RENT PSF section ─────────────────────────────────
+        add_title(ws, f"{reit} -- Same-Property Gross Asking Rent PSF Index (Base = 100)", row=1)
+        current_row = _write_index_section(
+            ws, 3, "Gross Asking", market_index_data, all_dates,
+            "Same-Property Gross Asking Rent PSF Index"
+        )
+
+        # ── NET EFFECTIVE RENT PSF section ────────────────────────────────
+        current_row += 2
+        ws.cell(row=current_row, column=1,
+                value=f"{reit} -- Same-Property Net Effective Rent PSF Index (Base = 100)").font = TITLE_FONT
+        current_row += 1
+        ws.cell(row=current_row, column=1,
+                value="NER = asking rent minus concession value spread over lease term. "
+                      "Only includes units with NER in both periods (matched comparison).").font = legend_font
+        current_row += 1
+
+        if market_ner_index_data:
+            current_row = _write_index_section(
+                ws, current_row, "Net Effective", market_ner_index_data, ner_all_dates,
+                "Same-Property Net Effective Rent PSF Index"
+            )
+        else:
             ws.cell(row=current_row, column=1,
-                    value=f"{reit} -- {region_name} Markets").font = SUBHEAD_FONT
-            current_row += 1
+                    value="No NER data available (no quantifiable concessions in same-property set).").font = legend_font
+            current_row += 2
 
-            mini_hdr = ["Date"] + mkt_order
-            write_header_row(ws, current_row, mini_hdr)
-            for i, d in enumerate(sorted_dates):
-                row_vals = [d] + [market_index_data[m].get(d) for m in mkt_order]
-                write_data_row(ws, current_row + 1 + i, row_vals, alt=(i % 2 == 1))
-
-            n_mini = len(sorted_dates)
-
-            if n_mini >= 2 and len(mkt_order) > 0:
-                chart = LineChart()
-                chart.title = f"{reit} -- {region_name} Markets, Same-Property Rent PSF Index"
-                chart.y_axis.title = "Index"
-                chart.x_axis.title = "Date"
-                chart.style = 10
-                chart.width = 24
-                chart.height = 14
-
-                data_ref = Reference(ws, min_col=2, max_col=1 + len(mkt_order),
-                                     min_row=current_row, max_row=current_row + n_mini)
-                cats_ref = Reference(ws, min_col=1,
-                                     min_row=current_row + 1, max_row=current_row + n_mini)
-                chart.add_data(data_ref, titles_from_data=True)
-                chart.set_categories(cats_ref)
-                _apply_series_colors(chart, mkt_order, MARKET_COLORS)
-                ws.add_chart(chart, f"A{current_row + n_mini + 2}")
-                current_row = current_row + n_mini + 2 + 18
-            else:
-                current_row = current_row + n_mini + 3
-
-        set_col_widths(ws, {get_column_letter(i): 16 for i in range(1, min(len(markets_with_data) + 2, 27))})
+        max_mkts = max(len(market_index_data), len(market_ner_index_data), 1)
+        set_col_widths(ws, {get_column_letter(i): 16 for i in range(1, min(max_mkts + 2, 27))})
         sheets_created.append(sheet_name)
 
     return sheets_created
@@ -2579,59 +2795,82 @@ def build_market_comparison_sheet(wb, df, sp_df, summary_history_df):
         set_col_widths(ws, {"A": 16, "B": 16})
         return ws
 
-    # Normal case: line charts with indexed rent PSF
-    for mkt in top_markets:
-        # Find REITs in this market
-        mkt_reits = sorted(df_latest[df_latest["macro_market"] == mkt]["reit"].unique())
-        if len(mkt_reits) < 2:
-            continue
+    # Helper to write one comparison section (gross or NER)
+    def _write_comparison_section(ws, start_row, section_title, index_func, chart_label):
+        """Write market comparison charts for one basis. Returns next row."""
+        cur = start_row
+        ws.cell(row=cur, column=1, value=section_title).font = TITLE_FONT
+        cur += 1
 
-        # Compute index for each REIT in this market
-        all_dates = set()
-        reit_index = {}  # reit -> {date: index}
-        for reit in mkt_reits:
-            ts = _compute_market_rent_psf_index(summary_history_df, sp_df, reit, mkt)
-            if ts:
-                reit_index[reit] = {d: v for d, v in ts}
-                all_dates.update(d for d, _ in ts)
+        for mkt in top_markets:
+            mkt_reits = sorted(df_latest[df_latest["macro_market"] == mkt]["reit"].unique())
+            if len(mkt_reits) < 2:
+                continue
 
-        reits_with_data = [r for r in mkt_reits if r in reit_index]
-        if len(reits_with_data) < 2 or not all_dates:
-            continue
+            mkt_dates = set()
+            reit_idx = {}
+            for r in mkt_reits:
+                ts = index_func(summary_history_df, sp_df, r, mkt)
+                if ts:
+                    reit_idx[r] = {d: v for d, v in ts}
+                    mkt_dates.update(d for d, _ in ts)
 
-        sorted_dates = sorted(all_dates)
+            reits_ok = [r for r in mkt_reits if r in reit_idx]
+            if len(reits_ok) < 2 or not mkt_dates:
+                continue
 
-        ws.cell(row=current_row, column=1, value=mkt).font = SUBHEAD_FONT
-        current_row += 1
+            s_dates = sorted(mkt_dates)
 
-        tbl_hdr = ["Date"] + reits_with_data
-        write_header_row(ws, current_row, tbl_hdr)
-        for i, d in enumerate(sorted_dates):
-            row_vals = [d] + [reit_index[r].get(d) for r in reits_with_data]
-            write_data_row(ws, current_row + 1 + i, row_vals, alt=(i % 2 == 1))
+            ws.cell(row=cur, column=1, value=mkt).font = SUBHEAD_FONT
+            cur += 1
 
-        n_rows = len(sorted_dates)
+            tbl_hdr = ["Date"] + reits_ok
+            write_header_row(ws, cur, tbl_hdr)
+            for i, d in enumerate(s_dates):
+                row_vals = [d] + [reit_idx[r].get(d) for r in reits_ok]
+                write_data_row(ws, cur + 1 + i, row_vals, alt=(i % 2 == 1))
 
-        if n_rows >= 2 and len(reits_with_data) > 0:
-            chart = LineChart()
-            chart.title = f"{mkt} -- Same-Property Rent PSF Index by REIT"
-            chart.y_axis.title = "Index"
-            chart.x_axis.title = "Date"
-            chart.style = 10
-            chart.width = 24
-            chart.height = 14
+            n_rows = len(s_dates)
 
-            data_ref = Reference(ws, min_col=2, max_col=1 + len(reits_with_data),
-                                 min_row=current_row, max_row=current_row + n_rows)
-            cats_ref = Reference(ws, min_col=1,
-                                 min_row=current_row + 1, max_row=current_row + n_rows)
-            chart.add_data(data_ref, titles_from_data=True)
-            chart.set_categories(cats_ref)
-            _apply_series_colors(chart, reits_with_data, REIT_COLORS)
-            ws.add_chart(chart, f"A{current_row + n_rows + 2}")
-            current_row = current_row + n_rows + 2 + 18
-        else:
-            current_row = current_row + n_rows + 3
+            if n_rows >= 2 and len(reits_ok) > 0:
+                chart = LineChart()
+                chart.title = f"{mkt} -- {chart_label}"
+                chart.y_axis.title = "Index"
+                chart.x_axis.title = "Date"
+                chart.style = 10
+                chart.width = 24
+                chart.height = 14
+
+                data_ref = Reference(ws, min_col=2, max_col=1 + len(reits_ok),
+                                     min_row=cur, max_row=cur + n_rows)
+                cats_ref = Reference(ws, min_col=1,
+                                     min_row=cur + 1, max_row=cur + n_rows)
+                chart.add_data(data_ref, titles_from_data=True)
+                chart.set_categories(cats_ref)
+                _apply_series_colors(chart, reits_ok, REIT_COLORS)
+                ws.add_chart(chart, f"A{cur + n_rows + 2}")
+                cur = cur + n_rows + 2 + 18
+            else:
+                cur = cur + n_rows + 3
+
+        return cur
+
+    # ── Gross Asking Rent PSF comparison ──────────────────────────────────
+    current_row = _write_comparison_section(
+        ws, current_row,
+        "Gross Asking Rent PSF Index by REIT",
+        _compute_market_rent_psf_index,
+        "Same-Property Gross Asking Rent PSF Index by REIT"
+    )
+
+    # ── Net Effective Rent PSF comparison ─────────────────────────────────
+    current_row += 2
+    current_row = _write_comparison_section(
+        ws, current_row,
+        "Net Effective Rent PSF Index by REIT",
+        _compute_market_ner_psf_index,
+        "Same-Property Net Effective Rent PSF Index by REIT"
+    )
 
     set_col_widths(ws, {get_column_letter(i): 14 for i in range(1, 12)})
     return ws

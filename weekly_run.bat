@@ -1,3 +1,3 @@
 @echo off
-cd /d C:\Users\user\reit-rental-scraper
+cd /d %~dp0
 py weekly_run.py

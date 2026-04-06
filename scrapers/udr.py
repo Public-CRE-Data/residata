@@ -142,7 +142,8 @@ _PRICE_DISPLAY_RE = re.compile(
 )
 _DEPOSIT_KW = (
     "security deposit", "admin fee", "administration fee",
-    "application fee", "holding deposit",
+    "application fee", "holding deposit", "deposit free",
+    "deposit-free", "rhino", "go deposit",
 )
 
 def _scrape_specials(specials_url: str, session: requests.Session) -> Optional[str]:
