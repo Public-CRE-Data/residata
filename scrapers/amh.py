@@ -185,6 +185,18 @@ def _fetch_market_listings(url: str, session: requests.Session) -> list[dict]:
 
 # ── Concession extraction from description ───────────────────────────────────
 
+# Sentence-boundary split for context-aware matching
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+# Deposit / non-rent contexts — if a numeric pattern appears within a sentence
+# containing any of these phrases, it is NOT a rent concession.
+_DEPOSIT_CONTEXT_RE = re.compile(
+    r"security\s+deposit|deposit\s+offer|application\s+fee|"
+    r"admin(?:istrative)?\s+fee|processing\s+fee|pet\s+fee|"
+    r"holding\s+deposit|move[- ]in\s+fee",
+    re.I,
+)
+
 _CONCESSION_PATTERNS = [
     # "X month(s) free" or "X weeks free"
     re.compile(r"\b(\d+)\s*months?\s*free\b", re.I),
@@ -192,9 +204,7 @@ _CONCESSION_PATTERNS = [
     re.compile(r"\$[\d,]+\s*off\b", re.I),
     # "X% off" patterns
     re.compile(r"\d+%\s*off\b", re.I),
-    # "Special security deposit offer" — AMH's standard promo
-    re.compile(r"special\s+security\s+deposit\s+offer[^.]*", re.I),
-    # Generic "special offer" or "limited time"
+    # Generic "special offer" or "limited time" (non-deposit)
     re.compile(r"(?:special|limited[- ]time)\s+(?:offer|promotion|deal)[^.]*", re.I),
 ]
 
@@ -202,14 +212,32 @@ _CONCESSION_PATTERNS = [
 def _extract_concession_text(description: str) -> Optional[str]:
     """
     Extract concession/promo text from property description.
-    Returns the matched text or None.
+
+    Returns the sentence containing the match (so downstream parse_concession
+    can apply its own deposit-exclusion logic on the full context).
+    Skips matches whose sentence mentions security deposit / application fee /
+    admin fee / etc., since those are not rent concessions.
+
+    Patterns are tried in priority order — specific (months/dollars/percent off)
+    before generic ("special offer") — so a description containing both a
+    generic intro and a specific concession returns the specific one.
     """
     if not description:
         return None
+
+    # Split description into sentences for context-aware matching.
+    sentences = _SENTENCE_SPLIT_RE.split(description)
+
+    # Filter out sentences that are deposit/fee offers up front.
+    rent_sentences = [s for s in sentences if not _DEPOSIT_CONTEXT_RE.search(s)]
+    if not rent_sentences:
+        return None
+
+    # Iterate patterns in priority order so specific matches win.
     for pat in _CONCESSION_PATTERNS:
-        m = pat.search(description)
-        if m:
-            return m.group(0).strip()
+        for sent in rent_sentences:
+            if pat.search(sent):
+                return sent.strip()
     return None
 
 

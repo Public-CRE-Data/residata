@@ -9,6 +9,7 @@
 #   2. Split any CSV > 4,000 rows or > 1.5 MB into _part1 / _part2
 #   3. Git add + commit + push to GitHub
 #   4. Rebuild Excel workbook via build_excel.py (pulls from GitHub)
+#   5. Run week-over-week data quality checks (wow_qa.py)
 #
 # Logs to: logs/weekly_YYYY-MM-DD.log
 
@@ -195,6 +196,44 @@ def rebuild_excel():
         logger.info("Excel workbook rebuilt successfully.")
 
 
+def run_wow_qa():
+    """Step 5: Run WoW data quality checks and log any flags."""
+    logger.info("=" * 60)
+    logger.info("  STEP 5: Week-over-Week Data Quality Check")
+    logger.info("=" * 60)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(BASE_DIR / "wow_qa.py")],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        # Mirror QA stdout to pipeline log
+        for line in result.stdout.splitlines():
+            logger.info(f"  {line}")
+        if result.stderr.strip():
+            logger.warning(f"  QA stderr: {result.stderr.strip()[:500]}")
+
+        # Parse flags from output for a one-line summary
+        out = result.stdout
+        fails = out.count("[FAIL]") - (1 if "[FAIL] (" in out else 0)
+        warns = out.count("[WARN]") - (1 if "[WARN] (" in out else 0)
+        import re as _re
+        fm = _re.search(r"\[FAIL\] \((\d+)\)", out)
+        wm = _re.search(r"\[WARN\] \((\d+)\)", out)
+        n_fail = int(fm.group(1)) if fm else 0
+        n_warn = int(wm.group(1)) if wm else 0
+        if n_fail:
+            logger.warning(f"  QA: {n_fail} FAIL, {n_warn} WARN — review logs/wow_qa_*.md")
+        elif n_warn:
+            logger.info(f"  QA: 0 FAIL, {n_warn} WARN — review logs/wow_qa_*.md")
+        else:
+            logger.info(f"  QA: all checks passed.")
+    except Exception as e:
+        logger.error(f"  WoW QA failed to run: {type(e).__name__}: {e}")
+
+
 def main():
     logger.info(f"Weekly REIT pipeline started — {today}")
     logger.info(f"Base directory: {BASE_DIR}")
@@ -216,6 +255,9 @@ def main():
 
     # Step 4: Rebuild Excel
     rebuild_excel()
+
+    # Step 5: Week-over-week data quality checks
+    run_wow_qa()
 
     logger.info("")
     logger.info("=" * 60)

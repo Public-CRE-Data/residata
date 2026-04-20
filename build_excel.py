@@ -1162,6 +1162,33 @@ def build_panel(file_list):
         print(f"  [FIX] Nulled UDR concession fields for first period ({panel['scrape_date'].min().date()}) "
               f"— {udr_first_mask.sum():,} rows. Old scraper overwrote real concessions with deposit text.")
 
+    # ── AMH concession fix: AMH's property description contains
+    # "Special security deposit offer: Pay a security deposit based on
+    # 1 month's rent with 25% off..." which is a SECURITY DEPOSIT waiver,
+    # not a rent concession. The AMH scraper's `\d+%\s*off\b` regex catches
+    # just "25% off" without the deposit context, then parse_concession
+    # classifies it as a percent_off rent concession generating a phantom
+    # 25% NER discount. Null out any AMH concession where concession_raw
+    # matches just a bare percent-off pattern (no rent/month/lease context).
+    import re as _re
+    _AMH_FALSE_POSITIVE = _re.compile(r"^\s*\d+\s*%\s*off\s*$", _re.I)
+    amh_mask = (panel["reit"] == "AMH") & panel["concession_raw"].notna()
+    if amh_mask.any():
+        raw_series = panel.loc[amh_mask, "concession_raw"].astype(str)
+        bad_mask_sub = raw_series.str.match(_AMH_FALSE_POSITIVE)
+        bad_idx = raw_series.index[bad_mask_sub]
+        if len(bad_idx):
+            if "has_concession" in panel.columns:
+                panel["has_concession"] = panel["has_concession"].astype("object")
+            conc_cols = ["has_concession", "concession_hardness", "concession_raw",
+                         "concession_type", "concession_value", "concession_pct_lease_value",
+                         "concession_pct_lease_term", "effective_monthly_rent"]
+            for col in conc_cols:
+                if col in panel.columns:
+                    panel.loc[bad_idx, col] = None
+            print(f"  [FIX] Nulled {len(bad_idx):,} AMH rows where concession_raw was a bare "
+                  f"percent-off pattern (security deposit offer false positive).")
+
     return panel
 
 
