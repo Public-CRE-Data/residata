@@ -10,6 +10,7 @@
 #   3. Git add + commit + push to GitHub
 #   4. Rebuild Excel workbook via build_excel.py (pulls from GitHub)
 #   5. Run week-over-week data quality checks (wow_qa.py)
+#   6. Build equity research charts workbook (build_charts.py)
 #
 # Logs to: logs/weekly_YYYY-MM-DD.log
 
@@ -234,6 +235,31 @@ def run_wow_qa():
         logger.error(f"  WoW QA failed to run: {type(e).__name__}: {e}")
 
 
+def build_research_charts():
+    """Step 6: Rebuild the research charts workbook for publication."""
+    logger.info("=" * 60)
+    logger.info("  STEP 6: Building research charts workbook")
+    logger.info("=" * 60)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(BASE_DIR / "build_charts.py")],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=600,
+        )
+        for line in result.stdout.splitlines():
+            logger.info(f"  {line}")
+        if result.stderr.strip():
+            logger.warning(f"  build_charts stderr: {result.stderr.strip()[:500]}")
+        if result.returncode != 0:
+            logger.error(f"  build_charts.py exited with code {result.returncode}")
+        else:
+            logger.info("  Research charts built successfully.")
+    except Exception as e:
+        logger.error(f"  build_charts.py failed to run: {type(e).__name__}: {e}")
+
+
 def main():
     logger.info(f"Weekly REIT pipeline started — {today}")
     logger.info(f"Base directory: {BASE_DIR}")
@@ -258,6 +284,9 @@ def main():
 
     # Step 5: Week-over-week data quality checks
     run_wow_qa()
+
+    # Step 6: Research charts workbook
+    build_research_charts()
 
     logger.info("")
     logger.info("=" * 60)

@@ -2039,17 +2039,62 @@ def _build_sp_index_from_history(summary_history_df, sp_df, metric_curr, metric_
             and metric_curr in summary_history_df.columns
             and "sp_count" in summary_history_df.columns):
         hist = summary_history_df.copy()
-        hist_sp = hist.dropna(subset=[metric_curr])
+        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
+
+        # ── Primary pass: count-weighted CURRENT values per period ──────
+        hist_sp = hist.dropna(subset=[metric_curr]).copy()
+        weighted_parts = []
         if not hist_sp.empty:
-            # Count-weighted average: sum(metric * count) / sum(count)
-            hist_sp = hist_sp.copy()
             hist_sp["_weighted"] = hist_sp[metric_curr] * hist_sp["sp_count"]
-            weighted = hist_sp.groupby(["reit", "scrape_date"]).agg(
+            w = hist_sp.groupby(["reit", "scrape_date"]).agg(
                 _wsum=("_weighted", "sum"), _csum=("sp_count", "sum")
             ).reset_index()
-            weighted["val"] = weighted["_wsum"] / weighted["_csum"]
-            weighted = weighted.rename(columns={"scrape_date": "date"}).sort_values("date")
-            pivot_raw = weighted.pivot(index="date", columns="reit", values="val")
+            w["val"] = w["_wsum"] / w["_csum"]
+            w = w.rename(columns={"scrape_date": "date"})
+            weighted_parts.append(w[["reit", "date", "val"]])
+
+        # ── Backfill pass: use sp_*_prev from the EARLIEST period with a
+        # non-null prev value as a standalone data point at (date - 1 week).
+        # This gives us a pre-baseline anchor so a 3-period history shows
+        # 3 data points (not 2) on the index chart.
+        if (metric_prev in hist.columns and not hist[metric_prev].dropna().empty):
+            hist_prev = hist.dropna(subset=[metric_prev]).copy()
+            # For each REIT: find earliest row with non-null metric_prev
+            earliest_prev = (
+                hist_prev.sort_values("scrape_date")
+                         .groupby("reit", as_index=False)
+                         .first()
+            )
+            # The prev value corresponds to the scrape_date ~1 week before
+            prev_anchor = earliest_prev[["reit", "scrape_date", metric_prev, "sp_count"]].copy()
+            prev_anchor["date"] = prev_anchor["scrape_date"] - pd.Timedelta(days=7)
+            # Need the count-weighted aggregation by reit (for all same-reit rows)
+            # at that earliest prev date — recompute across all bed/market buckets
+            earliest_prev_date = hist_prev.groupby("reit")["scrape_date"].min().reset_index()
+            earliest_prev_date.columns = ["reit", "_min_prev_dt"]
+            rows_for_anchor = hist_prev.merge(earliest_prev_date, on="reit")
+            rows_for_anchor = rows_for_anchor[
+                rows_for_anchor["scrape_date"] == rows_for_anchor["_min_prev_dt"]
+            ].copy()
+            rows_for_anchor["_weighted"] = rows_for_anchor[metric_prev] * rows_for_anchor["sp_count"]
+            anchor = rows_for_anchor.groupby("reit").agg(
+                _wsum=("_weighted", "sum"),
+                _csum=("sp_count", "sum"),
+                _min_prev_dt=("_min_prev_dt", "first"),
+            ).reset_index()
+            anchor["val"] = anchor["_wsum"] / anchor["_csum"]
+            anchor["date"] = anchor["_min_prev_dt"] - pd.Timedelta(days=7)
+            weighted_parts.append(anchor[["reit", "date", "val"]])
+
+        if weighted_parts:
+            combined = pd.concat(weighted_parts, ignore_index=True)
+            # If the backfilled baseline date happens to equal an existing
+            # period's scrape_date, prefer the CURRENT value (drop dupe).
+            combined = combined.sort_values(["reit", "date"]).drop_duplicates(
+                subset=["reit", "date"], keep="last"
+            )
+            pivot_raw = combined.pivot(index="date", columns="reit", values="val")
+            pivot_raw = pivot_raw.sort_index()
             if len(pivot_raw) >= 2:
                 pivot_index = pivot_raw.copy()
                 for col in pivot_index.columns:
@@ -2482,14 +2527,34 @@ def _compute_market_rent_psf_index(summary_history_df, sp_df, reit, market):
     if (summary_history_df is not None and not summary_history_df.empty
             and "sp_avg_rent_psf_curr" in summary_history_df.columns):
         hist = summary_history_df.copy()
+        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
         mask = (hist["reit"] == reit) & (hist["macro_market"] == market)
-        sub = hist.loc[mask].dropna(subset=["sp_avg_rent_psf_curr"])
-        if not sub.empty:
-            by_date = sub.groupby("scrape_date")["sp_avg_rent_psf_curr"].mean().sort_index()
-            if len(by_date) >= 2:
-                base = by_date.iloc[0]
-                if base and base != 0:
-                    return [(str(d), round(v / base * 100, 2)) for d, v in by_date.items()]
+        sub_all = hist.loc[mask].copy()
+
+        # CURRENT values per period
+        sub_curr = sub_all.dropna(subset=["sp_avg_rent_psf_curr"])
+        date_to_val = {}
+        if not sub_curr.empty:
+            by_date = sub_curr.groupby("scrape_date")["sp_avg_rent_psf_curr"].mean()
+            for d, v in by_date.items():
+                date_to_val[d] = v
+
+        # Backfill: use sp_avg_rent_psf_prev from the EARLIEST non-null
+        # prev row as an extra (earlier) anchor point.
+        sub_prev = sub_all.dropna(subset=["sp_avg_rent_psf_prev"])
+        if not sub_prev.empty:
+            earliest_dt = sub_prev["scrape_date"].min()
+            earliest_rows = sub_prev[sub_prev["scrape_date"] == earliest_dt]
+            anchor_val = earliest_rows["sp_avg_rent_psf_prev"].mean()
+            anchor_date = earliest_dt - pd.Timedelta(days=7)
+            if anchor_date not in date_to_val:
+                date_to_val[anchor_date] = anchor_val
+
+        if len(date_to_val) >= 2:
+            ordered = sorted(date_to_val.items())
+            base = ordered[0][1]
+            if base and base != 0:
+                return [(str(d)[:10], round(v / base * 100, 2)) for d, v in ordered]
     # Fallback to sp_df
     if not sp_df.empty and "sp_avg_rent_psf_curr" in sp_df.columns:
         sub = sp_df[(sp_df["reit"] == reit) & (sp_df["macro_market"] == market)]
@@ -2515,14 +2580,31 @@ def _compute_market_ner_psf_index(summary_history_df, sp_df, reit, market):
     if (summary_history_df is not None and not summary_history_df.empty
             and "sp_avg_eff_rent_psf_curr" in summary_history_df.columns):
         hist = summary_history_df.copy()
+        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
         mask = (hist["reit"] == reit) & (hist["macro_market"] == market)
-        sub = hist.loc[mask].dropna(subset=["sp_avg_eff_rent_psf_curr"])
-        if not sub.empty:
-            by_date = sub.groupby("scrape_date")["sp_avg_eff_rent_psf_curr"].mean().sort_index()
-            if len(by_date) >= 2:
-                base = by_date.iloc[0]
-                if base and base != 0:
-                    return [(str(d), round(v / base * 100, 2)) for d, v in by_date.items()]
+        sub_all = hist.loc[mask].copy()
+
+        sub_curr = sub_all.dropna(subset=["sp_avg_eff_rent_psf_curr"])
+        date_to_val = {}
+        if not sub_curr.empty:
+            by_date = sub_curr.groupby("scrape_date")["sp_avg_eff_rent_psf_curr"].mean()
+            for d, v in by_date.items():
+                date_to_val[d] = v
+
+        sub_prev = sub_all.dropna(subset=["sp_avg_eff_rent_psf_prev"])
+        if not sub_prev.empty:
+            earliest_dt = sub_prev["scrape_date"].min()
+            earliest_rows = sub_prev[sub_prev["scrape_date"] == earliest_dt]
+            anchor_val = earliest_rows["sp_avg_eff_rent_psf_prev"].mean()
+            anchor_date = earliest_dt - pd.Timedelta(days=7)
+            if anchor_date not in date_to_val:
+                date_to_val[anchor_date] = anchor_val
+
+        if len(date_to_val) >= 2:
+            ordered = sorted(date_to_val.items())
+            base = ordered[0][1]
+            if base and base != 0:
+                return [(str(d)[:10], round(v / base * 100, 2)) for d, v in ordered]
     # Fallback to sp_df
     if not sp_df.empty and "sp_avg_eff_rent_psf_curr" in sp_df.columns:
         sub = sp_df[(sp_df["reit"] == reit) & (sp_df["macro_market"] == market)]
