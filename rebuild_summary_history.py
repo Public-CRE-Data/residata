@@ -141,6 +141,38 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
     # has_concession → bool (post-nulling it was object)
     df["has_concession"] = df["has_concession"].fillna(False).astype(bool)
 
+    # ── Scraper coverage gap detection ────────────────────────────────
+    # If a REIT's FIRST-week scrape missed a macro_market that appears
+    # with >10% of portfolio weight in week 2, the same-property
+    # intersection for that pair is composition-biased (the matched
+    # pool lacks the under-covered market). Flag those REIT-date pairs
+    # so downstream can null their sp_* values.
+    print("  [COVERAGE] Checking first-week market coverage per REIT...")
+    coverage_gaps = {}
+    weeks = sorted(df["scrape_date"].unique())
+    if len(weeks) >= 2:
+        w0, w1 = weeks[0], weeks[1]
+        for reit in df["reit"].unique():
+            w0_mkts = df[(df["reit"] == reit) & (df["scrape_date"] == w0)]
+            w1_mkts = df[(df["reit"] == reit) & (df["scrape_date"] == w1)]
+            if len(w0_mkts) == 0 or len(w1_mkts) == 0:
+                continue
+            w0_mkt_counts = w0_mkts["macro_market"].value_counts()
+            w1_mkt_counts = w1_mkts["macro_market"].value_counts()
+            w1_total = w1_mkt_counts.sum()
+            # Find markets in week 2 that are missing or <10% of week 2 presence in week 1
+            for mkt, w1_n in w1_mkt_counts.items():
+                w0_n = w0_mkt_counts.get(mkt, 0)
+                if w1_n >= 50 and (w0_n / max(w1_n, 1)) < 0.10:
+                    coverage_gaps.setdefault(reit, []).append(
+                        (mkt, int(w0_n), int(w1_n))
+                    )
+    for reit, gaps in coverage_gaps.items():
+        gap_desc = ", ".join(f"{m} ({a}->{b})" for m, a, b in gaps)
+        print(f"    [FLAG] {reit} first-week ({w0.date()}) coverage gaps: {gap_desc}")
+
+    # Stash for use in compute_history
+    df.attrs["_coverage_gaps"] = coverage_gaps
     return df
 
 
@@ -255,6 +287,28 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
         all_rows.append(merged)
 
     hist = pd.concat(all_rows, ignore_index=True)
+
+    # ── Null SP values for REIT-week pairs flagged for coverage gap ─
+    # If week N had incomplete coverage for REIT X, then the SP pair
+    # (N, N+1) is composition-biased. Null X's sp_* in week N+1.
+    coverage_gaps = panel.attrs.get("_coverage_gaps", {})
+    if coverage_gaps and len(dates) >= 2:
+        second_week = dates[1]
+        sp_null_cols = ["sp_count", "sp_avg_rent_curr", "sp_avg_rent_prev", "sp_wow_pct",
+                        "sp_concession_rate_curr", "sp_concession_rate_prev",
+                        "sp_avg_rent_psf_curr", "sp_avg_rent_psf_prev", "sp_wow_pct_psf",
+                        "sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev", "sp_wow_pct_eff",
+                        "sp_avg_eff_rent_psf_curr", "sp_avg_eff_rent_psf_prev",
+                        "sp_wow_pct_eff_psf"]
+        for reit in coverage_gaps:
+            mask = (hist["reit"] == reit) & (hist["scrape_date"] == second_week)
+            n = int(mask.sum())
+            if n:
+                for c in sp_null_cols:
+                    if c in hist.columns:
+                        hist.loc[mask, c] = None
+                print(f"  [FIX] Nulled {n} rows of {reit} SP metrics on {second_week.date()} "
+                      f"(first-week coverage gap means N-1->N pair is biased).")
 
     # Column order matches existing summary_history.csv
     col_order = ["scrape_date", "reit", "macro_market", "beds", "listing_count",
