@@ -1189,6 +1189,21 @@ def build_panel(file_list):
             print(f"  [FIX] Nulled {len(bad_idx):,} AMH rows where concession_raw was a bare "
                   f"percent-off pattern (security deposit offer false positive).")
 
+    # ── NER coalesce: for units without a concession, effective_monthly_rent
+    # must equal gross rent. Otherwise a unit flipping from no-concession to
+    # concession (or vice versa) disappears from matched-NER comparisons, so
+    # concession-driven NER moves never register. Economically, NER = gross
+    # rent when no concession exists, so this is the correct treatment.
+    if "effective_monthly_rent" in panel.columns and "rent" in panel.columns:
+        no_conc = ~panel["has_concession"].fillna(False).astype(bool)
+        missing_ner = panel["effective_monthly_rent"].isna()
+        has_rent = panel["rent"].notna() & (panel["rent"] > 0)
+        fill_mask = no_conc & missing_ner & has_rent
+        n_filled = int(fill_mask.sum())
+        if n_filled:
+            panel.loc[fill_mask, "effective_monthly_rent"] = panel.loc[fill_mask, "rent"]
+            print(f"  [NER] Coalesced {n_filled:,} no-concession rows to NER=gross_rent.")
+
     return panel
 
 
@@ -1311,30 +1326,17 @@ def compute_same_property(df):
                 axis=1,
             )
 
-        # ── NER composition-bias fix ─────────────────────────────────────
-        # Only include units with non-null effective_monthly_rent in BOTH
-        # periods when computing NER same-property metrics.  Without this,
-        # different subsets inflate/deflate apparent NER changes.
-        prev_ner_ids = set(
-            prev_sp.loc[prev_sp["effective_monthly_rent"].notna(), "unit_id"]
-        )
-        curr_ner_ids = set(
-            curr_sp.loc[curr_sp["effective_monthly_rent"].notna(), "unit_id"]
-        )
-        ner_both_ids = prev_ner_ids & curr_ner_ids
-
-        prev_sp["_eff_rent_matched"] = prev_sp.apply(
-            lambda r: r["effective_monthly_rent"] if r["unit_id"] in ner_both_ids else None, axis=1
-        )
-        prev_sp["_eff_rent_psf_matched"] = prev_sp.apply(
-            lambda r: r["_eff_rent_psf"] if r["unit_id"] in ner_both_ids else None, axis=1
-        )
-        curr_sp["_eff_rent_matched"] = curr_sp.apply(
-            lambda r: r["effective_monthly_rent"] if r["unit_id"] in ner_both_ids else None, axis=1
-        )
-        curr_sp["_eff_rent_psf_matched"] = curr_sp.apply(
-            lambda r: r["_eff_rent_psf"] if r["unit_id"] in ner_both_ids else None, axis=1
-        )
+        # ── NER matched treatment ────────────────────────────────────────
+        # Units without a concession have NER = gross rent (coalesced in
+        # build_panel). A unit flipping concession status therefore shows a
+        # real NER move (gross_rent -> gross_rent - amortized concession).
+        # We keep the "_matched" columns for naming compatibility; they now
+        # include ALL same-property units, not just those with concessions
+        # in both periods.
+        prev_sp["_eff_rent_matched"] = prev_sp["effective_monthly_rent"]
+        prev_sp["_eff_rent_psf_matched"] = prev_sp["_eff_rent_psf"]
+        curr_sp["_eff_rent_matched"] = curr_sp["effective_monthly_rent"]
+        curr_sp["_eff_rent_psf_matched"] = curr_sp["_eff_rent_psf"]
 
         # Group by REIT x macro_market x beds
         key_cols = ["reit", "macro_market", "beds"]

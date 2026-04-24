@@ -141,6 +141,15 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
     # has_concession → bool (post-nulling it was object)
     df["has_concession"] = df["has_concession"].fillna(False).astype(bool)
 
+    # NER coalesce: for no-concession units, NER = gross rent (the correct
+    # economic treatment — captures concession-flip moves).
+    if "effective_monthly_rent" in df.columns and "rent" in df.columns:
+        fill = (~df["has_concession"]) & df["effective_monthly_rent"].isna() & df["rent"].notna()
+        n = int(fill.sum())
+        if n:
+            df.loc[fill, "effective_monthly_rent"] = df.loc[fill, "rent"]
+            print(f"  [NER] Coalesced {n:,} no-concession rows to NER=gross_rent.")
+
     # ── Scraper coverage gap detection ────────────────────────────────
     # If a REIT's FIRST-week scrape missed a macro_market that appears
     # with >10% of portfolio weight in week 2, the same-property
@@ -233,18 +242,14 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
             prev_sp = prev[prev["unit_id"].isin(sp_ids)].copy()
             curr_sp = curr[curr["unit_id"].isin(sp_ids)].copy()
 
-            # NER matched-only (composition bias fix)
-            prev_ner_ids = set(prev_sp.loc[prev_sp["effective_monthly_rent"].notna(), "unit_id"])
-            curr_ner_ids = set(curr_sp.loc[curr_sp["effective_monthly_rent"].notna(), "unit_id"])
-            ner_both = prev_ner_ids & curr_ner_ids
-            prev_sp["_eff_matched"] = prev_sp.apply(
-                lambda r: r["effective_monthly_rent"] if r["unit_id"] in ner_both else None, axis=1)
-            prev_sp["_eff_psf_matched"] = prev_sp.apply(
-                lambda r: r["_eff_rent_psf"] if r["unit_id"] in ner_both else None, axis=1)
-            curr_sp["_eff_matched"] = curr_sp.apply(
-                lambda r: r["effective_monthly_rent"] if r["unit_id"] in ner_both else None, axis=1)
-            curr_sp["_eff_psf_matched"] = curr_sp.apply(
-                lambda r: r["_eff_rent_psf"] if r["unit_id"] in ner_both else None, axis=1)
+            # NER treatment: NER is already coalesced with gross rent for
+            # no-concession units (in apply_fixes), so every matched unit
+            # contributes to the NER aggregate. Concession flips register
+            # as real NER moves.
+            prev_sp["_eff_matched"] = prev_sp["effective_monthly_rent"]
+            prev_sp["_eff_psf_matched"] = prev_sp["_eff_rent_psf"]
+            curr_sp["_eff_matched"] = curr_sp["effective_monthly_rent"]
+            curr_sp["_eff_psf_matched"] = curr_sp["_eff_rent_psf"]
 
             keys = ["reit", "macro_market", "beds"]
             prev_grp = prev_sp.groupby(keys, dropna=False).agg(
