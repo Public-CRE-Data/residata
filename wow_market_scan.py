@@ -58,6 +58,7 @@ def load_dedup(files):
         & df["concession_raw"].fillna("").astype(str).str.match(r"^\s*\d+\s*%\s*off\s*$", case=False)
     )
     if bare_mask.any():
+        df["has_concession"] = df["has_concession"].astype("object")
         for c in ["has_concession", "concession_hardness", "concession_raw",
                   "concession_type", "concession_value",
                   "concession_pct_lease_value", "concession_pct_lease_term",
