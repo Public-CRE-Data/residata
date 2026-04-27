@@ -1189,20 +1189,35 @@ def build_panel(file_list):
             print(f"  [FIX] Nulled {len(bad_idx):,} AMH rows where concession_raw was a bare "
                   f"percent-off pattern (security deposit offer false positive).")
 
-    # ── NER coalesce: for units without a concession, effective_monthly_rent
-    # must equal gross rent. Otherwise a unit flipping from no-concession to
-    # concession (or vice versa) disappears from matched-NER comparisons, so
-    # concession-driven NER moves never register. Economically, NER = gross
-    # rent when no concession exists, so this is the correct treatment.
+    # ── NER coalesce ─────────────────────────────────────────────────
+    # Two cases:
+    #   (a) has_concession=False with NER null → NER = gross rent
+    #   (b) has_concession=True but concession_value=None (soft promo
+    #       like "Check out current specials" — banner with no parseable
+    #       terms) → NER = gross rent. Without this, soft-concession units
+    #       drop out of bucket-level NER aggregates while still counting
+    #       toward sp_count, inflating the count-weighted aggregate.
+    # Both cases set NER = gross rent (the only economically defensible
+    # value when no quantified concession exists).
     if "effective_monthly_rent" in panel.columns and "rent" in panel.columns:
-        no_conc = ~panel["has_concession"].fillna(False).astype(bool)
+        has_conc = panel["has_concession"].fillna(False).astype(bool)
+        no_conc = ~has_conc
         missing_ner = panel["effective_monthly_rent"].isna()
         has_rent = panel["rent"].notna() & (panel["rent"] > 0)
-        fill_mask = no_conc & missing_ner & has_rent
-        n_filled = int(fill_mask.sum())
-        if n_filled:
+        # Case (a): no concession, NER missing
+        fill_a = no_conc & missing_ner & has_rent
+        # Case (b): has concession, but no parseable value (soft banner)
+        if "concession_value" in panel.columns:
+            no_value = panel["concession_value"].isna()
+        else:
+            no_value = pd.Series(True, index=panel.index)
+        fill_b = has_conc & missing_ner & has_rent & no_value
+        fill_mask = fill_a | fill_b
+        n_a, n_b = int(fill_a.sum()), int(fill_b.sum())
+        if n_a or n_b:
             panel.loc[fill_mask, "effective_monthly_rent"] = panel.loc[fill_mask, "rent"]
-            print(f"  [NER] Coalesced {n_filled:,} no-concession rows to NER=gross_rent.")
+            print(f"  [NER] Coalesced {n_a:,} no-concession + {n_b:,} soft-promo "
+                  f"(unparseable) rows to NER=gross_rent.")
 
     return panel
 

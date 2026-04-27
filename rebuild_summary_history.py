@@ -141,14 +141,21 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
     # has_concession → bool (post-nulling it was object)
     df["has_concession"] = df["has_concession"].fillna(False).astype(bool)
 
-    # NER coalesce: for no-concession units, NER = gross rent (the correct
-    # economic treatment — captures concession-flip moves).
+    # NER coalesce — see build_excel.build_panel for full rationale.
+    # Cases: (a) no concession, NER missing; (b) soft concession (has_concession=True
+    # but concession_value=None, e.g. "Check out current specials" banner).
+    # Both → NER = gross rent.
     if "effective_monthly_rent" in df.columns and "rent" in df.columns:
-        fill = (~df["has_concession"]) & df["effective_monthly_rent"].isna() & df["rent"].notna()
+        has_conc = df["has_concession"].fillna(False).astype(bool)
+        missing_ner = df["effective_monthly_rent"].isna()
+        has_rent = df["rent"].notna() & (df["rent"] > 0)
+        no_value = df["concession_value"].isna() if "concession_value" in df.columns else True
+        fill = ((~has_conc) | (has_conc & no_value)) & missing_ner & has_rent
         n = int(fill.sum())
         if n:
             df.loc[fill, "effective_monthly_rent"] = df.loc[fill, "rent"]
-            print(f"  [NER] Coalesced {n:,} no-concession rows to NER=gross_rent.")
+            print(f"  [NER] Coalesced {n:,} no-NER rows to NER=gross_rent "
+                  f"(no concession or soft/unparseable concession).")
 
     # ── Scraper coverage gap detection ────────────────────────────────
     # If a REIT's FIRST-week scrape missed a macro_market that appears

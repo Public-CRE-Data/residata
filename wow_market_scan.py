@@ -67,8 +67,13 @@ def load_dedup(files):
                 df.loc[bare_mask, c] = None
         df["has_concession"] = df["has_concession"].fillna(False).astype(bool)
 
-    # NER coalesce: no-concession units get NER = gross rent.
-    fill = (~df["has_concession"].astype(bool)) & df["effective_monthly_rent"].isna() & df["rent"].notna()
+    # NER coalesce: (a) no concession + NER missing, (b) soft promo with no
+    # parseable value (e.g. "Check out current specials" banner).
+    has_conc = df["has_concession"].astype(bool)
+    has_rent = df["rent"].notna() & (df["rent"] > 0)
+    missing_ner = df["effective_monthly_rent"].isna()
+    no_value = df["concession_value"].isna() if "concession_value" in df.columns else True
+    fill = ((~has_conc) | (has_conc & no_value)) & missing_ner & has_rent
     df.loc[fill, "effective_monthly_rent"] = df.loc[fill, "rent"]
     return df
 
