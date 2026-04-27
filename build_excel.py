@@ -2141,37 +2141,37 @@ def _build_sp_index_from_history(summary_history_df, sp_df, metric_curr, metric_
             return pivot_index, list(pivot_index.columns)
 
     if not sp_df.empty and metric_curr in sp_df.columns and metric_prev in sp_df.columns:
-        # Count-weighted from sp_df
+        # Fallback: sp_df has only the latest pair, so just chain a single
+        # WoW factor from base 100. Uses count-weighted aggregation.
         sp = sp_df.dropna(subset=[metric_curr, metric_prev]).copy()
+        if "sp_count" in sp.columns:
+            sp = sp[sp["sp_count"] > 0].copy()
         if not sp.empty:
-            first_prev = sp["date_prev"].min()
-
-            # Base period
-            base_sp = sp[sp["date_prev"] == first_prev].copy()
-            base_sp["_w"] = base_sp[metric_prev] * base_sp["sp_count"]
-            base_agg = base_sp.groupby("reit").agg(_wsum=("_w", "sum"), _csum=("sp_count", "sum")).reset_index()
-            base_agg["val"] = base_agg["_wsum"] / base_agg["_csum"]
-            base_agg["date"] = first_prev
-
-            # Current periods
-            sp["_w"] = sp[metric_curr] * sp["sp_count"]
-            curr_agg = sp.groupby(["reit", "date_curr"]).agg(
-                _wsum=("_w", "sum"), _csum=("sp_count", "sum")
+            sp["_w_curr"] = sp[metric_curr] * sp["sp_count"]
+            sp["_w_prev"] = sp[metric_prev] * sp["sp_count"]
+            agg = sp.groupby("reit").agg(
+                _ws_curr=("_w_curr", "sum"),
+                _ws_prev=("_w_prev", "sum"),
+                _ns=("sp_count", "sum"),
             ).reset_index()
-            curr_agg["val"] = curr_agg["_wsum"] / curr_agg["_csum"]
-            curr_agg = curr_agg.rename(columns={"date_curr": "date"})
+            agg = agg[(agg["_ws_prev"] > 0) & (agg["_ns"] > 0)]
+            if not agg.empty:
+                agg["wow_factor"] = agg["_ws_curr"] / agg["_ws_prev"]
+                first_prev = sp["date_prev"].min()
+                first_curr = sp["date_curr"].min()
+                rows = []
+                for _, r in agg.iterrows():
+                    rows.append({"reit": r["reit"], "date": first_prev, "value": 100.0})
+                    rows.append({"reit": r["reit"],
+                                 "date": first_curr,
+                                 "value": round(100.0 * float(r["wow_factor"]), 2)})
+                combined = pd.DataFrame(rows)
+                pivot_index = combined.pivot(index="date", columns="reit", values="value")
+                pivot_index = pivot_index.sort_index()
+                if len(pivot_index) >= 2:
+                    return pivot_index, list(pivot_index.columns)
 
-            combined = pd.concat([base_agg[["reit", "date", "val"]],
-                                  curr_agg[["reit", "date", "val"]]], ignore_index=True)
-            combined = combined.sort_values("date")
-            pivot_raw = combined.pivot(index="date", columns="reit", values="val")
-            pivot_index = pivot_raw.copy()
-            for col in pivot_index.columns:
-                first_val = pivot_index[col].dropna().iloc[0] if not pivot_index[col].dropna().empty else None
-                if first_val and first_val != 0:
-                    pivot_index[col] = (pivot_index[col] / first_val * 100).round(2)
-            return pivot_index, reits
-
+    reits = sorted(sp_df["reit"].dropna().unique()) if not sp_df.empty else []
     return None, reits
 
 
@@ -2360,33 +2360,79 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
 
     n_data = len(data_rows)
 
-    # ── Same-Property Avg Rent by REIT (raw $) — from sp_df (current 2 weeks) ──
+    # ── Same-Property Avg Rent by REIT (raw $) — full history, count-weighted ──
     rent_start = 4 + n_data + 3
     ws.cell(row=rent_start - 1, column=1,
             value="Same-Property Avg Rent by REIT ($)").font = SUBHEAD_FONT
     ws.cell(row=rent_start - 1, column=4,
-            value="CALC: For each REIT and date, avg asking rent across all same-property units "
-                  "(unit_ids present in both periods), all markets and bed counts.").font = legend_font
+            value="CALC: Count-weighted avg asking rent for each REIT × date over the matched "
+                  "same-property pool (units present in BOTH this period and the prior). "
+                  "WoW changes between adjacent rows align with the chain-linked indices below.").font = legend_font
 
-    reits = sorted(sp_df["reit"].dropna().unique())
+    # Use summary_history for full history; fall back to sp_df if unavailable.
+    if (summary_history_df is not None and not summary_history_df.empty
+            and "sp_avg_rent_curr" in summary_history_df.columns
+            and "sp_avg_rent_prev" in summary_history_df.columns
+            and "sp_count" in summary_history_df.columns):
+        hist = summary_history_df.copy()
+        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
 
-    # Build avg rent per REIT per date from sp_df (current 2-week window)
-    first_prev = sp_df["date_prev"].min()
-    reit_date_rent_base = (
-        sp_df[sp_df["date_prev"] == first_prev]
-        .groupby("reit")["sp_avg_rent_prev"].mean().reset_index()
-        .rename(columns={"sp_avg_rent_prev": "avg_rent"})
-    )
-    reit_date_rent_base["date"] = first_prev
+        # Per-week count-weighted curr aggregate
+        sp = hist.dropna(subset=["sp_avg_rent_curr", "sp_count"]).copy()
+        sp = sp[sp["sp_count"] > 0]
+        sp["_w_curr"] = sp["sp_avg_rent_curr"] * sp["sp_count"]
+        curr_agg = sp.groupby(["reit", "scrape_date"]).agg(
+            _ws=("_w_curr", "sum"), _cs=("sp_count", "sum")).reset_index()
+        curr_agg["avg_rent"] = curr_agg["_ws"] / curr_agg["_cs"]
+        curr_agg = curr_agg.rename(columns={"scrape_date": "date"})
 
-    reit_date_rent_curr = (
-        sp_df.groupby(["reit", "date_curr"])["sp_avg_rent_curr"].mean().reset_index()
-        .rename(columns={"date_curr": "date", "sp_avg_rent_curr": "avg_rent"})
-    )
+        # Backfill anchor: earliest non-null prev → date - 7 days
+        spp = hist.dropna(subset=["sp_avg_rent_prev", "sp_count"]).copy()
+        spp = spp[spp["sp_count"] > 0]
+        spp["_w_prev"] = spp["sp_avg_rent_prev"] * spp["sp_count"]
+        earliest = spp.groupby("reit")["scrape_date"].min().reset_index()
+        earliest.columns = ["reit", "_min_dt"]
+        anchor_rows = spp.merge(earliest, on="reit")
+        anchor_rows = anchor_rows[anchor_rows["scrape_date"] == anchor_rows["_min_dt"]]
+        if not anchor_rows.empty:
+            anchor_agg = anchor_rows.groupby("reit").agg(
+                _ws=("_w_prev", "sum"), _cs=("sp_count", "sum"),
+                _dt=("_min_dt", "first")).reset_index()
+            anchor_agg["avg_rent"] = anchor_agg["_ws"] / anchor_agg["_cs"]
+            anchor_agg["date"] = anchor_agg["_dt"] - pd.Timedelta(days=7)
+            combined_rent = pd.concat(
+                [anchor_agg[["reit", "date", "avg_rent"]],
+                 curr_agg[["reit", "date", "avg_rent"]]], ignore_index=True)
+        else:
+            combined_rent = curr_agg[["reit", "date", "avg_rent"]].copy()
 
-    combined_rent = pd.concat([reit_date_rent_base, reit_date_rent_curr], ignore_index=True)
-    combined_rent = combined_rent.sort_values("date")
-    pivot_rent = combined_rent.pivot(index="date", columns="reit", values="avg_rent")
+        combined_rent = combined_rent.sort_values("date").drop_duplicates(
+            subset=["reit", "date"], keep="last")
+        reits = sorted(combined_rent["reit"].dropna().unique())
+        pivot_rent = combined_rent.pivot(index="date", columns="reit", values="avg_rent")
+    else:
+        # Fallback: sp_df (current 2-week window) with count-weighted aggregation
+        reits = sorted(sp_df["reit"].dropna().unique())
+        first_prev = sp_df["date_prev"].min()
+        sp_b = sp_df[sp_df["date_prev"] == first_prev].dropna(subset=["sp_avg_rent_prev", "sp_count"]).copy()
+        sp_b = sp_b[sp_b["sp_count"] > 0]
+        sp_b["_w"] = sp_b["sp_avg_rent_prev"] * sp_b["sp_count"]
+        base_agg = sp_b.groupby("reit").agg(_ws=("_w", "sum"), _cs=("sp_count", "sum")).reset_index()
+        base_agg["avg_rent"] = base_agg["_ws"] / base_agg["_cs"]
+        base_agg["date"] = first_prev
+
+        sp_c = sp_df.dropna(subset=["sp_avg_rent_curr", "sp_count"]).copy()
+        sp_c = sp_c[sp_c["sp_count"] > 0]
+        sp_c["_w"] = sp_c["sp_avg_rent_curr"] * sp_c["sp_count"]
+        curr_agg = sp_c.groupby(["reit", "date_curr"]).agg(
+            _ws=("_w", "sum"), _cs=("sp_count", "sum")).reset_index()
+        curr_agg["avg_rent"] = curr_agg["_ws"] / curr_agg["_cs"]
+        curr_agg = curr_agg.rename(columns={"date_curr": "date"})
+
+        combined_rent = pd.concat([base_agg[["reit", "date", "avg_rent"]],
+                                   curr_agg[["reit", "date", "avg_rent"]]], ignore_index=True)
+        combined_rent = combined_rent.sort_values("date")
+        pivot_rent = combined_rent.pivot(index="date", columns="reit", values="avg_rent")
 
     rent_hdr = ["Date"] + list(pivot_rent.columns)
     write_header_row(ws, rent_start, rent_hdr)
@@ -2413,27 +2459,66 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
             value="CALC: Count-weighted avg NER across all same-property units with NER in BOTH periods. "
                   "NER = asking rent minus concession value spread over lease term.").font = legend_font
 
-    # Build count-weighted NER per REIT per date from sp_df
-    sp_ner = sp_df.dropna(subset=["sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev"]).copy()
-    if not sp_ner.empty:
-        # Base: weighted avg of prev NER
-        sp_ner["_w_prev"] = sp_ner["sp_avg_eff_rent_prev"] * sp_ner["sp_count"]
-        sp_ner["_w_curr"] = sp_ner["sp_avg_eff_rent_curr"] * sp_ner["sp_count"]
+    # Build count-weighted NER per REIT per date — prefer summary_history (full
+    # history); fall back to sp_df (latest pair only).
+    pivot_ner = None
+    if (summary_history_df is not None and not summary_history_df.empty
+            and "sp_avg_eff_rent_curr" in summary_history_df.columns
+            and "sp_avg_eff_rent_prev" in summary_history_df.columns
+            and "sp_count" in summary_history_df.columns):
+        hist = summary_history_df.copy()
+        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
+        sp = hist.dropna(subset=["sp_avg_eff_rent_curr", "sp_count"]).copy()
+        sp = sp[sp["sp_count"] > 0]
+        if not sp.empty:
+            sp["_w_curr"] = sp["sp_avg_eff_rent_curr"] * sp["sp_count"]
+            curr_ner = sp.groupby(["reit", "scrape_date"]).agg(
+                _ws=("_w_curr", "sum"), _cs=("sp_count", "sum")).reset_index()
+            curr_ner["avg_ner"] = curr_ner["_ws"] / curr_ner["_cs"]
+            curr_ner = curr_ner.rename(columns={"scrape_date": "date"})
 
-        base_ner = sp_ner[sp_ner["date_prev"] == sp_ner["date_prev"].min()].groupby("reit").agg(
-            _ws=("_w_prev", "sum"), _cs=("sp_count", "sum")).reset_index()
-        base_ner["avg_ner"] = base_ner["_ws"] / base_ner["_cs"]
-        base_ner["date"] = sp_ner["date_prev"].min()
+            spp = hist.dropna(subset=["sp_avg_eff_rent_prev", "sp_count"]).copy()
+            spp = spp[spp["sp_count"] > 0]
+            if not spp.empty:
+                spp["_w_prev"] = spp["sp_avg_eff_rent_prev"] * spp["sp_count"]
+                earliest = spp.groupby("reit")["scrape_date"].min().reset_index()
+                earliest.columns = ["reit", "_min_dt"]
+                anchor_rows = spp.merge(earliest, on="reit")
+                anchor_rows = anchor_rows[anchor_rows["scrape_date"] == anchor_rows["_min_dt"]]
+                anchor_agg = anchor_rows.groupby("reit").agg(
+                    _ws=("_w_prev", "sum"), _cs=("sp_count", "sum"),
+                    _dt=("_min_dt", "first")).reset_index()
+                anchor_agg["avg_ner"] = anchor_agg["_ws"] / anchor_agg["_cs"]
+                anchor_agg["date"] = anchor_agg["_dt"] - pd.Timedelta(days=7)
+                combined_ner = pd.concat(
+                    [anchor_agg[["reit", "date", "avg_ner"]],
+                     curr_ner[["reit", "date", "avg_ner"]]], ignore_index=True)
+            else:
+                combined_ner = curr_ner[["reit", "date", "avg_ner"]].copy()
+            combined_ner = combined_ner.sort_values("date").drop_duplicates(
+                subset=["reit", "date"], keep="last")
+            pivot_ner = combined_ner.pivot(index="date", columns="reit", values="avg_ner")
 
-        curr_ner = sp_ner.groupby(["reit", "date_curr"]).agg(
-            _ws=("_w_curr", "sum"), _cs=("sp_count", "sum")).reset_index()
-        curr_ner["avg_ner"] = curr_ner["_ws"] / curr_ner["_cs"]
-        curr_ner = curr_ner.rename(columns={"date_curr": "date"})
+    # Fallback: sp_df only (2-week window)
+    if pivot_ner is None or pivot_ner.empty:
+        sp_ner = sp_df.dropna(subset=["sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev"]).copy()
+        if not sp_ner.empty:
+            sp_ner["_w_prev"] = sp_ner["sp_avg_eff_rent_prev"] * sp_ner["sp_count"]
+            sp_ner["_w_curr"] = sp_ner["sp_avg_eff_rent_curr"] * sp_ner["sp_count"]
+            base_ner = sp_ner[sp_ner["date_prev"] == sp_ner["date_prev"].min()].groupby("reit").agg(
+                _ws=("_w_prev", "sum"), _cs=("sp_count", "sum")).reset_index()
+            base_ner["avg_ner"] = base_ner["_ws"] / base_ner["_cs"]
+            base_ner["date"] = sp_ner["date_prev"].min()
+            curr_ner = sp_ner.groupby(["reit", "date_curr"]).agg(
+                _ws=("_w_curr", "sum"), _cs=("sp_count", "sum")).reset_index()
+            curr_ner["avg_ner"] = curr_ner["_ws"] / curr_ner["_cs"]
+            curr_ner = curr_ner.rename(columns={"date_curr": "date"})
+            combined_ner = pd.concat([base_ner[["reit", "date", "avg_ner"]],
+                                      curr_ner[["reit", "date", "avg_ner"]]], ignore_index=True)
+            combined_ner = combined_ner.sort_values("date")
+            pivot_ner = combined_ner.pivot(index="date", columns="reit", values="avg_ner")
 
-        combined_ner = pd.concat([base_ner[["reit", "date", "avg_ner"]],
-                                  curr_ner[["reit", "date", "avg_ner"]]], ignore_index=True)
-        combined_ner = combined_ner.sort_values("date")
-        pivot_ner = combined_ner.pivot(index="date", columns="reit", values="avg_ner")
+    if pivot_ner is not None and not pivot_ner.empty:
 
         ner_hdr = ["Date"] + list(pivot_ner.columns)
         write_header_row(ws, ner_start, ner_hdr)

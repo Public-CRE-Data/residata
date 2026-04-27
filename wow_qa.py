@@ -255,6 +255,54 @@ def check_identical_value_flood(cur: pd.DataFrame) -> list[dict]:
     return flags
 
 
+def check_index_methodology() -> list[dict]:
+    """
+    Source-code regression check.
+
+    Detects patterns in build_excel.py that indicate the OLD broken
+    same-property index method (count-weighted curr/period divided by
+    earliest base). Any match triggers a hard FAIL — these patterns
+    silently produce composition-leak artifacts in WoW% changes.
+    """
+    flags = []
+    src_path = BASE_DIR / "build_excel.py"
+    if not src_path.exists():
+        return flags
+    try:
+        src = src_path.read_text(encoding="utf-8", errors="ignore")
+    except Exception as e:
+        return [{"severity": "WARN", "check": "index_methodology",
+                 "msg": f"Couldn't read build_excel.py: {e}"}]
+
+    # Look for the broken pattern: dividing series by `first_val` to make
+    # an index, OR taking simple .mean() of sp_avg_*_curr columns.
+    bad_patterns = [
+        (r"/\s*first_val\s*\*\s*100",
+         "Found '/ first_val * 100' — old base-period division (use chain-link)"),
+        (r'sp_avg_rent_curr\s*\.\s*mean\s*\(',
+         "Found '.mean()' on sp_avg_rent_curr — should be count-weighted by sp_count"),
+        (r'sp_avg_rent_psf_curr\s*\.\s*mean\s*\(',
+         "Found '.mean()' on sp_avg_rent_psf_curr — should be count-weighted"),
+        (r'sp_avg_eff_rent_curr\s*\.\s*mean\s*\(',
+         "Found '.mean()' on sp_avg_eff_rent_curr — should be count-weighted"),
+        (r'sp_avg_eff_rent_psf_curr\s*\.\s*mean\s*\(',
+         "Found '.mean()' on sp_avg_eff_rent_psf_curr — should be count-weighted"),
+    ]
+    import re as _re
+    for pat, msg in bad_patterns:
+        # Skip matches inside docstrings/comments by line-by-line scan
+        for i, line in enumerate(src.splitlines(), start=1):
+            stripped = line.lstrip()
+            if stripped.startswith("#") or stripped.startswith('"') or stripped.startswith("'"):
+                continue
+            if _re.search(pat, line):
+                flags.append({
+                    "severity": "FAIL", "check": "index_methodology",
+                    "msg": f"build_excel.py:{i}: {msg}",
+                })
+    return flags
+
+
 def check_ner_rate_explosion(cur: pd.DataFrame, prior: pd.DataFrame) -> list[dict]:
     """REITs where NER coverage explodes WoW often indicates fake concessions."""
     flags = []
@@ -295,6 +343,7 @@ def run_qa(cur_patterns: list[str], prior_patterns: list[str],
     all_flags.extend(check_ner_rate_explosion(cur, prior))
     all_flags.extend(check_identical_text_flood(cur))
     all_flags.extend(check_identical_value_flood(cur))
+    all_flags.extend(check_index_methodology())
 
     # ── Build markdown report ─────────────────────────────────────────────
     lines = []
