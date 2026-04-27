@@ -2042,6 +2042,24 @@ def build_charts_concessions_sheet(wb, df, summary_history_df=None):
     pivot = grp.pivot(index="scrape_date", columns="reit", values="concession_rate")
     pivot = pivot.round(4)
 
+    # ── Drop REITs that are always 0 (e.g. SFR REITs AMH/INVH that
+    # legitimately never offer concessions). Plotting them as flat lines
+    # at zero crowds the chart and obscures the real signals.
+    nonzero_reits = [r for r in reits_sorted
+                     if r in pivot.columns and (pivot[r].fillna(0) > 0).any()]
+    dropped = [r for r in reits_sorted if r not in nonzero_reits]
+    reits_sorted = nonzero_reits
+
+    # ── Replace zero values that came from week-1 scraper-bug nulling
+    # (ESS / UDR earliest week) with None — those weeks have nulled
+    # concession data and should not be plotted as 0%.
+    earliest = dates_sorted[0] if dates_sorted else None
+    for r in ("ESS", "UDR"):
+        if r in pivot.columns and earliest in pivot.index:
+            v = pivot.at[earliest, r]
+            if pd.notna(v) and v == 0:
+                pivot.at[earliest, r] = None
+
     # Write table
     hdr = ["Date"] + reits_sorted
     write_header_row(ws, 3, hdr)
@@ -2053,6 +2071,13 @@ def build_charts_concessions_sheet(wb, df, summary_history_df=None):
         ]
         fmts = [None] + [NUM_PCT] * len(reits_sorted)
         write_data_row(ws, 4 + i, row_vals, alt=(i % 2 == 1), number_formats=fmts)
+
+    # Footnote about excluded REITs
+    if dropped:
+        note_row = 4 + len(dates_sorted) + 1
+        ws.cell(row=note_row, column=1,
+                value=f"Note: {', '.join(dropped)} excluded — single-family REIT(s) with no concessions across all weeks.").font = Font(
+                    name="Arial", italic=True, size=9, color="666666")
 
     # Line chart
     if dates_sorted and reits_sorted:
