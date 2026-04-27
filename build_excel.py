@@ -2556,109 +2556,94 @@ REIT_LIST = ["MAA", "CPT", "EQR", "AVB", "UDR", "ESS", "INVH", "AMH"]
 # NEW SHEET: Per-REIT Market Breakdown
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _compute_market_rent_psf_index(summary_history_df, sp_df, reit, market):
+def _compute_market_psf_index(summary_history_df, sp_df, reit, market,
+                              curr_col, prev_col):
     """
-    Compute indexed rent PSF (base=100) time series for a single REIT+market.
-    Returns list of (date_str, index_value) or empty list.
+    Compute chain-linked indexed PSF (base=100) time series for one
+    REIT × macro_market, on either gross rent PSF or NER PSF.
+
+    METHODOLOGY: chain-linked WoW.
+        For each scrape_date row (corresponding to that week's matched pool):
+            wow_factor = sum(curr * sp_count) / sum(prev * sp_count)
+        Then chain:
+            Index[t] = Index[t-1] x wow_factor[t]
+        with Index[t0] = 100 anchored at (earliest curr_date - 7 days).
+
+    Why: each WoW% is computed only on units that appeared in BOTH that
+    week and the prior week (the matched pool for that pair). Bed-mix or
+    other composition shifts across weeks DON'T leak into the index
+    because every weekly factor is anchored to its own consistent cohort.
+
+    Returns list of (date_str, index_value) sorted by date, or [].
     """
+    # ── Primary: chain-link from summary_history ──────────────────────
     if (summary_history_df is not None and not summary_history_df.empty
-            and "sp_avg_rent_psf_curr" in summary_history_df.columns):
+            and curr_col in summary_history_df.columns
+            and prev_col in summary_history_df.columns
+            and "sp_count" in summary_history_df.columns):
         hist = summary_history_df.copy()
         hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
-        mask = (hist["reit"] == reit) & (hist["macro_market"] == market)
-        sub_all = hist.loc[mask].copy()
-
-        # CURRENT values per period
-        sub_curr = sub_all.dropna(subset=["sp_avg_rent_psf_curr"])
-        date_to_val = {}
-        if not sub_curr.empty:
-            by_date = sub_curr.groupby("scrape_date")["sp_avg_rent_psf_curr"].mean()
-            for d, v in by_date.items():
-                date_to_val[d] = v
-
-        # Backfill: use sp_avg_rent_psf_prev from the EARLIEST non-null
-        # prev row as an extra (earlier) anchor point.
-        sub_prev = sub_all.dropna(subset=["sp_avg_rent_psf_prev"])
-        if not sub_prev.empty:
-            earliest_dt = sub_prev["scrape_date"].min()
-            earliest_rows = sub_prev[sub_prev["scrape_date"] == earliest_dt]
-            anchor_val = earliest_rows["sp_avg_rent_psf_prev"].mean()
-            anchor_date = earliest_dt - pd.Timedelta(days=7)
-            if anchor_date not in date_to_val:
-                date_to_val[anchor_date] = anchor_val
-
-        if len(date_to_val) >= 2:
-            ordered = sorted(date_to_val.items())
-            base = ordered[0][1]
-            if base and base != 0:
-                return [(str(d)[:10], round(v / base * 100, 2)) for d, v in ordered]
-    # Fallback to sp_df
-    if not sp_df.empty and "sp_avg_rent_psf_curr" in sp_df.columns:
-        sub = sp_df[(sp_df["reit"] == reit) & (sp_df["macro_market"] == market)]
+        sub = hist[(hist["reit"] == reit) & (hist["macro_market"] == market)]
+        sub = sub.dropna(subset=[curr_col, prev_col, "sp_count"])
+        sub = sub[sub["sp_count"] > 0]
         if not sub.empty:
-            first_prev = sub["date_prev"].min()
-            base_val = sub[sub["date_prev"] == first_prev]["sp_avg_rent_psf_prev"].mean()
-            if pd.notna(base_val) and base_val != 0:
-                result = [(str(first_prev)[:10], 100.0)]
-                for _, grp in sub.groupby("date_curr"):
-                    d = str(grp["date_curr"].iloc[0])[:10]
-                    v = grp["sp_avg_rent_psf_curr"].mean()
-                    if pd.notna(v):
-                        result.append((d, round(v / base_val * 100, 2)))
-                return result
+            sub = sub.copy()
+            sub["_w_curr"] = sub[curr_col] * sub["sp_count"]
+            sub["_w_prev"] = sub[prev_col] * sub["sp_count"]
+            agg = sub.groupby("scrape_date").agg(
+                _wc=("_w_curr", "sum"),
+                _wp=("_w_prev", "sum"),
+                _n=("sp_count", "sum"),
+            ).reset_index()
+            agg = agg[(agg["_wp"] > 0) & (agg["_n"] > 0)]
+            if not agg.empty:
+                agg = agg.sort_values("scrape_date").reset_index(drop=True)
+                agg["wow_factor"] = agg["_wc"] / agg["_wp"]
+                base_date = agg.loc[0, "scrape_date"] - pd.Timedelta(days=7)
+                rows = [(str(base_date)[:10], 100.0)]
+                running = 100.0
+                for _, r in agg.iterrows():
+                    running = running * float(r["wow_factor"])
+                    rows.append((str(r["scrape_date"])[:10], round(running, 2)))
+                return rows
+
+    # ── Fallback: sp_df has only the latest pair, so just compute that
+    # one WoW% and emit two points. ─────────────────────────────────
+    if not sp_df.empty and curr_col in sp_df.columns and prev_col in sp_df.columns:
+        sub = sp_df[(sp_df["reit"] == reit) & (sp_df["macro_market"] == market)]
+        sub = sub.dropna(subset=[curr_col, prev_col])
+        if "sp_count" in sub.columns:
+            sub = sub[sub["sp_count"] > 0].copy()
+            if not sub.empty:
+                num = (sub[curr_col] * sub["sp_count"]).sum()
+                den = (sub[prev_col] * sub["sp_count"]).sum()
+                if den and not pd.isna(den) and not pd.isna(num):
+                    factor = num / den
+                    first_prev = sub["date_prev"].min()
+                    first_curr = sub["date_curr"].min()
+                    return [
+                        (str(first_prev)[:10], 100.0),
+                        (str(first_curr)[:10], round(100.0 * factor, 2)),
+                    ]
     return []
+
+
+def _compute_market_rent_psf_index(summary_history_df, sp_df, reit, market):
+    """Chain-linked GROSS rent PSF index (base=100) for REIT × market."""
+    return _compute_market_psf_index(
+        summary_history_df, sp_df, reit, market,
+        curr_col="sp_avg_rent_psf_curr",
+        prev_col="sp_avg_rent_psf_prev",
+    )
 
 
 def _compute_market_ner_psf_index(summary_history_df, sp_df, reit, market):
-    """
-    Compute indexed NET EFFECTIVE rent PSF (base=100) time series for a single REIT+market.
-    Returns list of (date_str, index_value) or empty list.
-    """
-    if (summary_history_df is not None and not summary_history_df.empty
-            and "sp_avg_eff_rent_psf_curr" in summary_history_df.columns):
-        hist = summary_history_df.copy()
-        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
-        mask = (hist["reit"] == reit) & (hist["macro_market"] == market)
-        sub_all = hist.loc[mask].copy()
-
-        sub_curr = sub_all.dropna(subset=["sp_avg_eff_rent_psf_curr"])
-        date_to_val = {}
-        if not sub_curr.empty:
-            by_date = sub_curr.groupby("scrape_date")["sp_avg_eff_rent_psf_curr"].mean()
-            for d, v in by_date.items():
-                date_to_val[d] = v
-
-        sub_prev = sub_all.dropna(subset=["sp_avg_eff_rent_psf_prev"])
-        if not sub_prev.empty:
-            earliest_dt = sub_prev["scrape_date"].min()
-            earliest_rows = sub_prev[sub_prev["scrape_date"] == earliest_dt]
-            anchor_val = earliest_rows["sp_avg_eff_rent_psf_prev"].mean()
-            anchor_date = earliest_dt - pd.Timedelta(days=7)
-            if anchor_date not in date_to_val:
-                date_to_val[anchor_date] = anchor_val
-
-        if len(date_to_val) >= 2:
-            ordered = sorted(date_to_val.items())
-            base = ordered[0][1]
-            if base and base != 0:
-                return [(str(d)[:10], round(v / base * 100, 2)) for d, v in ordered]
-    # Fallback to sp_df
-    if not sp_df.empty and "sp_avg_eff_rent_psf_curr" in sp_df.columns:
-        sub = sp_df[(sp_df["reit"] == reit) & (sp_df["macro_market"] == market)]
-        if not sub.empty:
-            sub_ner = sub.dropna(subset=["sp_avg_eff_rent_psf_prev", "sp_avg_eff_rent_psf_curr"])
-            if not sub_ner.empty:
-                first_prev = sub_ner["date_prev"].min()
-                base_val = sub_ner[sub_ner["date_prev"] == first_prev]["sp_avg_eff_rent_psf_prev"].mean()
-                if pd.notna(base_val) and base_val != 0:
-                    result = [(str(first_prev)[:10], 100.0)]
-                    for _, grp in sub_ner.groupby("date_curr"):
-                        d = str(grp["date_curr"].iloc[0])[:10]
-                        v = grp["sp_avg_eff_rent_psf_curr"].mean()
-                        if pd.notna(v):
-                            result.append((d, round(v / base_val * 100, 2)))
-                    return result
-    return []
+    """Chain-linked NET EFFECTIVE rent PSF index (base=100) for REIT × market."""
+    return _compute_market_psf_index(
+        summary_history_df, sp_df, reit, market,
+        curr_col="sp_avg_eff_rent_psf_curr",
+        prev_col="sp_avg_eff_rent_psf_prev",
+    )
 
 
 def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
