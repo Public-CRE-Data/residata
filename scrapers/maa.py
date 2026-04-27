@@ -44,6 +44,7 @@ from utils.common import get_page, today_str, parse_int, parse_float
 REIT = "MAA"
 BASE_URL = "https://www.maac.com"
 SITEMAP_URL = "https://www.maac.com/sitemap.xml"
+SITEMAP_HTML_URL = "https://www.maac.com/sitemap/"  # primary discovery source
 DEFAULT_LEASE_MONTHS = 12  # used when lease_term not scraped
 
 logger = logging.getLogger(__name__)
@@ -400,19 +401,62 @@ def make_unit_id(
 # ── Sitemap discovery ──────────────────────────────────────────────────────────
 
 def get_community_urls(session: requests.Session) -> list[str]:
+    """
+    Discover community URLs from MAA's HTML sitemap at /sitemap/.
+
+    As of April 2026 the XML sitemap (/sitemap.xml) no longer includes
+    property pages — only state pages and storybook component pages.
+    The HTML sitemap page lists every property under state > city > property.
+    Property URLs follow: https://www.maac.com/<state>/<city>/<property>/
+
+    We fall back to the XML sitemap if the HTML page is unavailable.
+    """
+    EXCLUDE_FIRST_SEG = (
+        "about", "new-dev", "career", "storybook",
+        "errors", "accessibility-statement", "privacy-policy",
+        "property-comparison", "sitemap",
+    )
+
+    def _filter_path(url: str) -> bool:
+        path = url.replace(BASE_URL, "").strip("/")
+        segs = [s for s in path.split("/") if s]
+        if len(segs) != 3:
+            return False
+        if segs[0].startswith(EXCLUDE_FIRST_SEG):
+            return False
+        # Property pages start with "maa-" (e.g. maa-eagle-ridge, maa-camelback)
+        # but a few legacy properties may not — accept anything not in exclude.
+        return True
+
+    # Primary: HTML sitemap page
+    html = get_page(SITEMAP_HTML_URL, session)
+    if html:
+        urls = set()
+        for m in re.finditer(r'href="(https://www\.maac\.com/[^"]+)"', html):
+            u = m.group(1).rstrip("/")
+            # Normalize trailing slash
+            u = u + "/"
+            if _filter_path(u):
+                urls.add(u)
+        if urls:
+            urls_list = sorted(urls)
+            logger.info(f"Discovered {len(urls_list)} community URLs (HTML sitemap)")
+            return urls_list
+        else:
+            logger.warning("HTML sitemap returned 0 community URLs — falling back to XML")
+
+    # Fallback: XML sitemap (legacy path, retained in case MAA reverts)
     html = get_page(SITEMAP_URL, session)
     if not html:
-        logger.error("Could not fetch sitemap")
+        logger.error("Could not fetch sitemap (HTML or XML)")
         return []
     soup = BeautifulSoup(html, "xml")
     urls = []
     for loc in soup.find_all("loc"):
         url = loc.text.strip()
-        path = url.replace(BASE_URL, "").strip("/")
-        segs = [s for s in path.split("/") if s]
-        if len(segs) == 3 and not segs[0].startswith(("about", "new-dev", "career")):
+        if _filter_path(url):
             urls.append(url)
-    logger.info(f"Discovered {len(urls)} community URLs")
+    logger.info(f"Discovered {len(urls)} community URLs (XML sitemap fallback)")
     return urls
 
 
@@ -432,6 +476,16 @@ def meta_from_url(url: str) -> dict:
 # ── Community metadata extraction ─────────────────────────────────────────────
 
 def extract_community_meta(soup: BeautifulSoup, url: str) -> dict:
+    """
+    Extract community-level metadata from a MAA property page.
+
+    Updated April 2026: MAA redesigned the property page DOM.
+      Old:  <div class="property-information"> ... <h1>Name</h1> ...
+            <a id="property-address" href="...?center=lat,lng">addr</a>
+      New:  <h1 class="property-hero__title">Name</h1>
+            <... class="print-address">"123 Main St , City , ST | (xxx) xxx-xxxx"</...>
+            JSON-embedded "latitude":{"value":"X"} / "longitude":{"value":"Y"}
+    """
     meta = {
         "community": None,
         "address": None,
@@ -440,21 +494,52 @@ def extract_community_meta(soup: BeautifulSoup, url: str) -> dict:
         "rentcafe_property_id": None,
     }
 
-    prop_info = soup.find(class_="property-information")
-    if prop_info:
-        h1 = prop_info.find("h1")
-        if h1:
-            meta["community"] = h1.get_text(strip=True)
+    # Property name — try new structure first, fall back to legacy
+    h1 = soup.find("h1", class_=re.compile(r"property-hero__title"))
+    if not h1:
+        prop_info = soup.find(class_="property-information")
+        if prop_info:
+            h1 = prop_info.find("h1")
+    if not h1:
+        # Last resort: any h1 starting with "MAA "
+        for tag in soup.find_all("h1"):
+            if tag.get_text(strip=True).startswith("MAA "):
+                h1 = tag
+                break
+    if h1:
+        meta["community"] = h1.get_text(strip=True)
 
-    addr_tag = soup.find(id="property-address")
+    # Address — new structure uses class "print-address"
+    addr_tag = soup.find(class_="print-address")
+    if not addr_tag:
+        # Try class "print-address-row"
+        addr_tag = soup.find(class_="print-address-row")
+    if not addr_tag:
+        # Legacy fallback
+        addr_tag = soup.find(id="property-address")
     if addr_tag:
-        meta["address"] = addr_tag.get_text(strip=True)
-        href = addr_tag.get("href", "")
+        addr_text = addr_tag.get_text(" ", strip=True)
+        # Strip phone number suffix ("...VA | (804) 534-1868")
+        addr_text = re.sub(r"\s*\|\s*\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{4}\s*$", "", addr_text)
+        meta["address"] = addr_text.strip(", ").strip()
+        # Legacy address path: extract lat/lng from href if present
+        href = addr_tag.get("href", "") if hasattr(addr_tag, "get") else ""
         m = re.search(r"center=([-\d.]+),\s*([-\d.]+)", href)
         if m:
             meta["latitude"]  = parse_float(m.group(1))
             meta["longitude"] = parse_float(m.group(2))
 
+    # New: lat/lng embedded in page JSON.
+    if meta["latitude"] is None or meta["longitude"] is None:
+        page_text = str(soup)
+        lm = re.search(r'"latitude"\s*:\s*\{\s*"value"\s*:\s*"([-\d.]+)"', page_text)
+        lo = re.search(r'"longitude"\s*:\s*\{\s*"value"\s*:\s*"([-\d.]+)"', page_text)
+        if lm:
+            meta["latitude"]  = parse_float(lm.group(1))
+        if lo:
+            meta["longitude"] = parse_float(lo.group(1))
+
+    # propertyId for rentcafe linkage
     pid = re.search(r"propertyId=(\d+)", str(soup))
     if pid:
         meta["rentcafe_property_id"] = pid.group(1)
@@ -506,55 +591,147 @@ def extract_units(
     has_community_concession: bool,
     concession_raw: Optional[str],
 ) -> list[dict]:
+    """
+    Extract per-unit listing rows from a MAA property page.
+
+    Updated April 2026 for new BEM-style DOM:
+      <div class="property-available-apartments__card">
+        <a class="property-available-apartments__card-link"
+           href="/available-apartments/?propertyId=...&Bedroom=1%20Bed&apartmentName=11406">
+          <div class="property-available-apartments__card-info">
+            <span class="property-available-apartments__unit-number">Unit # 11406</span>
+            <ul class="property-available-apartments__details-list">
+              <li>1 Bed, 1 Bath</li>
+              <li>718 Sq. Ft.</li>
+              <li>Move-in: 04/27 - 04/30</li>
+            </ul>
+            <span class="property-available-apartments__price">$1,788</span>
+          </div>
+          <div class="property-available-apartments__card-amenities">...</div>
+        </a>
+      </div>
+
+    Falls back to legacy "available-apartments__body--apt" blocks if MAA
+    serves the old DOM (defensive).
+    """
     scrape_dt = date.today()
     rows = []
 
-    blocks = soup.find_all("div", class_="available-apartments__body--apt")
+    blocks = soup.find_all("div", class_="property-available-apartments__card")
+    legacy = False
+    if not blocks:
+        # Legacy DOM fallback
+        blocks = soup.find_all("div", class_="available-apartments__body--apt")
+        legacy = True
+
     for block in blocks:
-        # ── Unit number ───────────────────────────────────────────────
-        unit_number = None
-        unit_span = block.find(class_="unit")
-        if unit_span:
-            raw = unit_span.get_text(strip=True)
-            m = re.search(r"#(\S+)", raw)
-            unit_number = m.group(1) if m else raw
+        if legacy:
+            # ── Legacy unit number / price / details (old DOM) ────────
+            unit_number = None
+            unit_span = block.find(class_="unit")
+            if unit_span:
+                raw = unit_span.get_text(strip=True)
+                m = re.search(r"#(\S+)", raw)
+                unit_number = m.group(1) if m else raw
 
-        # ── Price ─────────────────────────────────────────────────────
-        rent = None
-        price_span = block.find("span", attrs={"class": "price", "style": True})
-        if price_span:
-            rent = parse_float(re.sub(r"[^\d.]", "", price_span.get_text(strip=True)))
+            rent = None
+            price_span = block.find("span", attrs={"class": "price", "style": True})
+            if price_span:
+                rent = parse_float(re.sub(r"[^\d.]", "", price_span.get_text(strip=True)))
+            if rent is None:
+                continue
 
-        if rent is None:
-            continue   # rent is mandatory — skip row
+            lis = block.select("div.apt-details ul li")
+            beds = baths = sqft = None
+            floor_level = move_in_date = None
+            if len(lis) >= 1:
+                bed_bath = lis[0].get_text(strip=True)
+                bm = re.search(r"(\d+)\s*Bed", bed_bath, re.IGNORECASE)
+                bam = re.search(r"(\d+(?:\.\d+)?)\s*Bath", bed_bath, re.IGNORECASE)
+                if bm:  beds  = int(bm.group(1))
+                if bam: baths = float(bam.group(1))
+            if len(lis) >= 2:
+                sqft = parse_int(lis[1].get_text(strip=True))
+            if len(lis) >= 3:
+                floor_level = clean_floor(lis[2].get_text(strip=True))
+            if len(lis) >= 4:
+                move_in_date = parse_move_in(lis[3].get_text())
 
-        # ── Detail list ───────────────────────────────────────────────
-        lis = block.select("div.apt-details ul li")
-        beds = baths = sqft = None
-        floor_level = move_in_date = None
+            fp_name = None
+            amen_div = block.find(class_="apt-amenities")
+            if amen_div:
+                fp_name = parse_floorplan(amen_div.get_text(strip=True))
 
-        if len(lis) >= 1:
-            bed_bath = lis[0].get_text(strip=True)
-            bm = re.search(r"(\d+)\s*Bed", bed_bath, re.IGNORECASE)
-            bam = re.search(r"(\d+(?:\.\d+)?)\s*Bath", bed_bath, re.IGNORECASE)
-            if bm:  beds  = int(bm.group(1))
-            if bam: baths = float(bam.group(1))
-        if len(lis) >= 2:
-            sqft = parse_int(lis[1].get_text(strip=True))
-        if len(lis) >= 3:
-            floor_level = clean_floor(lis[2].get_text(strip=True))
-        if len(lis) >= 4:
-            move_in_date = parse_move_in(lis[3].get_text())
+            unit_has_badge = bool(block.find(class_="special-offer-btn"))
+        else:
+            # ── New BEM DOM ───────────────────────────────────────────
+            # Unit number
+            unit_number = None
+            unit_span = block.find(class_="property-available-apartments__unit-number")
+            if unit_span:
+                raw = unit_span.get_text(" ", strip=True)
+                m = re.search(r"#\s*(\S+)", raw)
+                unit_number = m.group(1) if m else None
+            # Fallback: parse from card-link href apartmentName param
+            if not unit_number:
+                link = block.find("a", class_="property-available-apartments__card-link")
+                if link:
+                    href = link.get("href", "")
+                    m = re.search(r"apartmentName=([^&]+)", href)
+                    if m:
+                        unit_number = m.group(1)
 
-        # ── Amenities / floor plan ────────────────────────────────────
-        fp_name = None
-        amen_div = block.find(class_="apt-amenities")
-        if amen_div:
-            fp_name = parse_floorplan(amen_div.get_text(strip=True))
+            # Price
+            rent = None
+            price_span = block.find(class_="property-available-apartments__price")
+            if price_span:
+                txt = price_span.get_text(" ", strip=True)
+                rent = parse_float(re.sub(r"[^\d.]", "", txt))
+            if rent is None:
+                continue
+
+            # Details list (Bed/Bath, Sqft, Move-in)
+            beds = baths = sqft = None
+            floor_level = move_in_date = None
+            details_ul = block.find(class_="property-available-apartments__details-list")
+            lis = details_ul.find_all("li") if details_ul else []
+            for li in lis:
+                txt = li.get_text(" ", strip=True)
+                if "Bed" in txt or "Bath" in txt:
+                    bm = re.search(r"(\d+)\s*Bed", txt, re.IGNORECASE)
+                    bam = re.search(r"(\d+(?:\.\d+)?)\s*Bath", txt, re.IGNORECASE)
+                    if bm:  beds  = int(bm.group(1))
+                    if bam: baths = float(bam.group(1))
+                elif "Sq" in txt or "Sq. Ft" in txt:
+                    sqft = parse_int(txt)
+                elif "Move-in" in txt or "Move in" in txt:
+                    move_in_date = parse_move_in(txt)
+                elif "Floor" in txt:
+                    floor_level = clean_floor(txt)
+
+            # Floorplan name from image src (e.g. "Gilmore-Large_2_floorplan.png")
+            fp_name = None
+            img = block.find("img", class_=re.compile(r"property-available-apartments__card-image"))
+            if img:
+                src = img.get("src", "") or img.get("srcset", "")
+                m = re.search(r"p\d+_([A-Za-z0-9\-]+?)_\d_floorplan", src)
+                if m:
+                    fp_name = m.group(1).replace("-", " ")
+
+            # Bedroom from URL fallback if details missed it
+            if beds is None:
+                link = block.find("a", class_="property-available-apartments__card-link")
+                if link:
+                    m = re.search(r"Bedroom=(\d+)", link.get("href", ""))
+                    if m:
+                        beds = int(m.group(1))
+
+            # New DOM has no per-unit special-offer badge — concessions are
+            # community-level only, conveyed via property-details__special-info.
+            unit_has_badge = False
 
         # ── Concession ────────────────────────────────────────────────
         # Unit has a concession if it has the badge OR community has a banner
-        unit_has_badge = bool(block.find(class_="special-offer-btn"))
         effective_concession = (unit_has_badge or has_community_concession)
         raw_text = concession_raw if effective_concession else None
 
@@ -636,17 +813,34 @@ def scrape_maa(limit: Optional[int] = None) -> pd.DataFrame:
         url_meta       = meta_from_url(url)
         community_meta = extract_community_meta(soup, url)
 
-        # Community-level concession
+        # ── Community-level concession ──────────────────────────────
+        # New (April 2026): <div class="property-details__special-info">
+        #   "Move-in Special Lease Now, monthly rent has been reduced $215!..."
+        # The visible "Move-in Special" prefix duplicates the title element;
+        # we strip it so concession_raw is the actual offer text.
+        # Old DOM used "move-in-special-wrapper > move-in-special > p" — kept
+        # as fallback in case MAA reverts.
         has_community_concession = False
         concession_raw = None
-        wrapper = soup.find(class_="move-in-special-wrapper")
-        if wrapper:
-            special = wrapper.find(class_="move-in-special")
-            if special:
-                p = special.find("p")
-                if p:
-                    concession_raw = p.get_text(strip=True)
-                    has_community_concession = bool(concession_raw)
+
+        special_info = soup.find(class_="property-details__special-info")
+        if special_info:
+            txt = special_info.get_text(" ", strip=True)
+            # Drop leading "Move-in Special" prefix if duplicated
+            txt = re.sub(r"^\s*Move[- ]?in\s*Special\s*", "", txt, flags=re.I).strip()
+            if txt:
+                concession_raw = txt
+                has_community_concession = True
+
+        if not has_community_concession:
+            wrapper = soup.find(class_="move-in-special-wrapper")
+            if wrapper:
+                special = wrapper.find(class_="move-in-special")
+                if special:
+                    p = special.find("p")
+                    if p:
+                        concession_raw = p.get_text(strip=True)
+                        has_community_concession = bool(concession_raw)
 
         rows = extract_units(
             soup=soup,
