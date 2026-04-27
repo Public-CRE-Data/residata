@@ -93,34 +93,6 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
     except ImportError:
         print("  [WARN] parse_concession unavailable — using CSV values as-is.")
 
-    # ESS week 1: scraper bug nulls on earliest period
-    ess_first = df[df["reit"] == "ESS"]["scrape_date"].min() if (df["reit"] == "ESS").any() else None
-    if ess_first is not None:
-        mask = (df["reit"] == "ESS") & (df["scrape_date"] == ess_first)
-        if mask.any():
-            df["has_concession"] = df["has_concession"].astype("object")
-            for c in ["has_concession", "concession_hardness", "concession_raw",
-                      "concession_type", "concession_value",
-                      "concession_pct_lease_value", "concession_pct_lease_term",
-                      "effective_monthly_rent"]:
-                if c in df.columns:
-                    df.loc[mask, c] = None
-            print(f"  [FIX] Nulled ESS first-period concessions ({ess_first.date()}, {int(mask.sum()):,} rows).")
-
-    # UDR week 1: deposit-text overwrite on earliest period
-    udr_first = df[df["reit"] == "UDR"]["scrape_date"].min() if (df["reit"] == "UDR").any() else None
-    if udr_first is not None:
-        mask = (df["reit"] == "UDR") & (df["scrape_date"] == udr_first)
-        if mask.any():
-            df["has_concession"] = df["has_concession"].astype("object")
-            for c in ["has_concession", "concession_hardness", "concession_raw",
-                      "concession_type", "concession_value",
-                      "concession_pct_lease_value", "concession_pct_lease_term",
-                      "effective_monthly_rent"]:
-                if c in df.columns:
-                    df.loc[mask, c] = None
-            print(f"  [FIX] Nulled UDR first-period concessions ({udr_first.date()}, {int(mask.sum()):,} rows).")
-
     # AMH bare-percent deposit-offer false positive (all periods)
     bare_re = re.compile(r"^\s*\d+\s*%\s*off\s*$", re.I)
     amh_mask = ((df["reit"] == "AMH")
@@ -156,6 +128,25 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
             df.loc[fill, "effective_monthly_rent"] = df.loc[fill, "rent"]
             print(f"  [NER] Coalesced {n:,} no-NER rows to NER=gross_rent "
                   f"(no concession or soft/unparseable concession).")
+
+    # ── ESS / UDR week-1 nulling (AFTER NER coalesce) ────────────────
+    # Must run after coalesce; otherwise these rows would be coalesced
+    # back to NER=gross_rent. See build_excel.build_panel for rationale.
+    earliest = df["scrape_date"].min() if not df.empty else None
+    if earliest is not None:
+        for reit_name in ("ESS", "UDR"):
+            mask = (df["reit"] == reit_name) & (df["scrape_date"] == earliest)
+            if not mask.any():
+                continue
+            df["has_concession"] = df["has_concession"].astype("object")
+            for c in ["has_concession", "concession_hardness", "concession_raw",
+                      "concession_type", "concession_value",
+                      "concession_pct_lease_value", "concession_pct_lease_term",
+                      "effective_monthly_rent"]:
+                if c in df.columns:
+                    df.loc[mask, c] = None
+            print(f"  [FIX] Nulled {reit_name} first-period concession+NER "
+                  f"({earliest.date()}, {int(mask.sum()):,} rows).")
 
     # ── Scraper coverage gap detection ────────────────────────────────
     # If a REIT's FIRST-week scrape missed a macro_market that appears

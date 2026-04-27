@@ -256,6 +256,33 @@ def run_wow_audit():
         logger.error(f"  WoW audit failed to run: {type(e).__name__}: {e}")
 
 
+def run_integrity_audit():
+    """Step 5c: Comprehensive data integrity audit across ALL historical weeks.
+
+    Catches: bucket-vs-matched divergence, NER-vs-rent identity violations,
+    boundary violations (NER>rent, conc_rate out of [0,1]), coalesce
+    contamination, cross-REIT outliers, pool-size shifts, identical-text
+    floods, and source-code regressions on the chain-link convention.
+    """
+    logger.info("=" * 60)
+    logger.info("  STEP 5c: Data Integrity Audit (full history)")
+    logger.info("=" * 60)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(BASE_DIR / "data_integrity_audit.py")],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        for line in result.stdout.splitlines():
+            logger.info(f"  {line}")
+        if result.stderr.strip():
+            logger.warning(f"  integrity stderr: {result.stderr.strip()[:500]}")
+    except Exception as e:
+        logger.error(f"  Integrity audit failed to run: {type(e).__name__}: {e}")
+
+
 def build_research_charts():
     """Step 6: Rebuild the research charts workbook for publication."""
     logger.info("=" * 60)
@@ -308,6 +335,9 @@ def main():
 
     # Step 5b: Detailed WoW audit (per-market decomposition, divergence checks)
     run_wow_audit()
+
+    # Step 5c: Data integrity audit (full history, 8 anomaly classes)
+    run_integrity_audit()
 
     # Step 6: Research charts workbook
     build_research_charts()

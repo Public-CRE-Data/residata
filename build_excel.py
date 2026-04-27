@@ -1126,42 +1126,6 @@ def build_panel(file_list):
     except ImportError:
         print("  [WARN] Could not import parse_concession — using CSV values as-is.")
 
-    # ── ESS concession fix: week 1 data was scraped with a bug that missed
-    # the property-offer-cta DOM element. Null out concession fields for ESS
-    # on the earliest period so they're excluded from all comparisons.
-    # Rent data is unaffected and remains valid.
-    ess_first_mask = (panel["reit"] == "ESS") & (panel["scrape_date"] == panel["scrape_date"].min())
-    if ess_first_mask.any():
-        # Convert has_concession to nullable before assigning NaN
-        if "has_concession" in panel.columns:
-            panel["has_concession"] = panel["has_concession"].astype("object")
-        conc_cols = ["has_concession", "concession_hardness", "concession_raw",
-                     "concession_type", "concession_value", "concession_pct_lease_value",
-                     "concession_pct_lease_term", "effective_monthly_rent"]
-        for col in conc_cols:
-            if col in panel.columns:
-                panel.loc[ess_first_mask, col] = None
-        print(f"  [FIX] Nulled ESS concession fields for first period ({panel['scrape_date'].min().date()}) "
-              f"— {ess_first_mask.sum():,} rows. Scraper bug (fixed week 2).")
-
-    # ── UDR concession fix: week 1 (earliest period) scraper stored ONLY
-    # "Go deposit free with Rhino." even for units that had real concessions,
-    # overwriting the actual concession text.  51% of deposit-tagged units
-    # show real concessions 4 days later — confirming data loss, not organic
-    # ramp.  Null out UDR week 1 concession fields (rent data is valid).
-    udr_first_mask = (panel["reit"] == "UDR") & (panel["scrape_date"] == panel["scrape_date"].min())
-    if udr_first_mask.any():
-        if "has_concession" in panel.columns:
-            panel["has_concession"] = panel["has_concession"].astype("object")
-        conc_cols = ["has_concession", "concession_hardness", "concession_raw",
-                     "concession_type", "concession_value", "concession_pct_lease_value",
-                     "concession_pct_lease_term", "effective_monthly_rent"]
-        for col in conc_cols:
-            if col in panel.columns:
-                panel.loc[udr_first_mask, col] = None
-        print(f"  [FIX] Nulled UDR concession fields for first period ({panel['scrape_date'].min().date()}) "
-              f"— {udr_first_mask.sum():,} rows. Old scraper overwrote real concessions with deposit text.")
-
     # ── AMH concession fix: AMH's property description contains
     # "Special security deposit offer: Pay a security deposit based on
     # 1 month's rent with 25% off..." which is a SECURITY DEPOSIT waiver,
@@ -1218,6 +1182,37 @@ def build_panel(file_list):
             panel.loc[fill_mask, "effective_monthly_rent"] = panel.loc[fill_mask, "rent"]
             print(f"  [NER] Coalesced {n_a:,} no-concession + {n_b:,} soft-promo "
                   f"(unparseable) rows to NER=gross_rent.")
+
+    # ── ESS / UDR week-1 concession nulling (AFTER NER coalesce) ───────
+    # Why after: nulling BEFORE coalesce would leave has_concession=False
+    # for these rows and the coalesce step would set NER = gross rent.
+    # That contaminates the FIRST WoW pair (3-28 → 4-4) for ESS and UDR
+    # because curr-period NER reflects real concessions while prev-period
+    # NER reflects gross rent — looks like a fake NER decline.
+    #
+    # ESS: week 1 scraper missed property-offer-cta DOM elements.
+    # UDR: week 1 scraper stored "Go deposit free with Rhino" for all
+    #      units, overwriting real concession text.
+    # In both cases, week 1 concession data is unreliable. We null both
+    # has_concession AND effective_monthly_rent so these units are
+    # excluded from all NER aggregates (rather than treated as gross-rent
+    # baselines). Rent (gross asking) is unaffected.
+    earliest_date = panel["scrape_date"].min()
+    for reit_name in ("ESS", "UDR"):
+        mask = (panel["reit"] == reit_name) & (panel["scrape_date"] == earliest_date)
+        if not mask.any():
+            continue
+        if "has_concession" in panel.columns:
+            panel["has_concession"] = panel["has_concession"].astype("object")
+        conc_cols = ["has_concession", "concession_hardness", "concession_raw",
+                     "concession_type", "concession_value", "concession_pct_lease_value",
+                     "concession_pct_lease_term", "effective_monthly_rent"]
+        for col in conc_cols:
+            if col in panel.columns:
+                panel.loc[mask, col] = None
+        n = int(mask.sum())
+        print(f"  [FIX] Nulled {reit_name} concession + NER for first period "
+              f"({earliest_date.date()}) — {n:,} rows.")
 
     return panel
 
