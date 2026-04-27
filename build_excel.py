@@ -2073,81 +2073,72 @@ def build_charts_concessions_sheet(wb, df, summary_history_df=None):
 
 def _build_sp_index_from_history(summary_history_df, sp_df, metric_curr, metric_prev):
     """
-    Build a pivot index (base=100) from summary_history or sp_df for a given metric.
-    Uses COUNT-WEIGHTED averaging across market × bed groups to avoid small-group
-    distortion (e.g. a 10-unit market shouldn't equal-weight a 500-unit market).
+    Build a pivot index (base=100) from summary_history.
+
+    METHODOLOGY: Chain-linked same-property index.
+
+    For each period N, compute the count-weighted WoW % change using ONLY
+    that period's matched pool (i.e. sp_*_curr vs sp_*_prev for the same
+    set of units present in both N-1 and N). Then chain:
+        Index[N] = Index[N-1] x (1 + WoW%[N])
+
+    Why not just plot count-weighted sp_*_curr per period and divide by
+    base? Because the matched pool is freshly defined every period — its
+    composition shifts week to week. Plotting raw sp_curr values mixes
+    real rent change with mix shifts. Chain-linking isolates the true
+    rent move within each period's own matched cohort.
+
     Returns (pivot_index_df, reits_list) or (None, []).
     """
-    pivot_index = None
-    reits = sorted(sp_df["reit"].dropna().unique()) if not sp_df.empty else []
-
-    if (summary_history_df is not None and not summary_history_df.empty
-            and metric_curr in summary_history_df.columns
-            and "sp_count" in summary_history_df.columns):
+    if (summary_history_df is None or summary_history_df.empty
+            or metric_curr not in summary_history_df.columns
+            or metric_prev not in summary_history_df.columns
+            or "sp_count" not in summary_history_df.columns):
+        # Fall through to sp_df-only path below
+        pass
+    else:
         hist = summary_history_df.copy()
         hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
 
-        # ── Primary pass: count-weighted CURRENT values per period ──────
-        hist_sp = hist.dropna(subset=[metric_curr]).copy()
-        weighted_parts = []
-        if not hist_sp.empty:
-            hist_sp["_weighted"] = hist_sp[metric_curr] * hist_sp["sp_count"]
-            w = hist_sp.groupby(["reit", "scrape_date"]).agg(
-                _wsum=("_weighted", "sum"), _csum=("sp_count", "sum")
-            ).reset_index()
-            w["val"] = w["_wsum"] / w["_csum"]
-            w = w.rename(columns={"scrape_date": "date"})
-            weighted_parts.append(w[["reit", "date", "val"]])
+        # Compute count-weighted WoW % per (reit, date) using rows that
+        # have both curr and prev populated (i.e. the matched same-prop
+        # pool for that period).
+        sp = hist.dropna(subset=[metric_curr, metric_prev, "sp_count"]).copy()
+        sp = sp[sp["sp_count"] > 0].copy()
+        if sp.empty:
+            return None, []
 
-        # ── Backfill pass: use sp_*_prev from the EARLIEST period with a
-        # non-null prev value as a standalone data point at (date - 1 week).
-        # This gives us a pre-baseline anchor so a 3-period history shows
-        # 3 data points (not 2) on the index chart.
-        if (metric_prev in hist.columns and not hist[metric_prev].dropna().empty):
-            hist_prev = hist.dropna(subset=[metric_prev]).copy()
-            # For each REIT: find earliest row with non-null metric_prev
-            earliest_prev = (
-                hist_prev.sort_values("scrape_date")
-                         .groupby("reit", as_index=False)
-                         .first()
-            )
-            # The prev value corresponds to the scrape_date ~1 week before
-            prev_anchor = earliest_prev[["reit", "scrape_date", metric_prev, "sp_count"]].copy()
-            prev_anchor["date"] = prev_anchor["scrape_date"] - pd.Timedelta(days=7)
-            # Need the count-weighted aggregation by reit (for all same-reit rows)
-            # at that earliest prev date — recompute across all bed/market buckets
-            earliest_prev_date = hist_prev.groupby("reit")["scrape_date"].min().reset_index()
-            earliest_prev_date.columns = ["reit", "_min_prev_dt"]
-            rows_for_anchor = hist_prev.merge(earliest_prev_date, on="reit")
-            rows_for_anchor = rows_for_anchor[
-                rows_for_anchor["scrape_date"] == rows_for_anchor["_min_prev_dt"]
-            ].copy()
-            rows_for_anchor["_weighted"] = rows_for_anchor[metric_prev] * rows_for_anchor["sp_count"]
-            anchor = rows_for_anchor.groupby("reit").agg(
-                _wsum=("_weighted", "sum"),
-                _csum=("sp_count", "sum"),
-                _min_prev_dt=("_min_prev_dt", "first"),
-            ).reset_index()
-            anchor["val"] = anchor["_wsum"] / anchor["_csum"]
-            anchor["date"] = anchor["_min_prev_dt"] - pd.Timedelta(days=7)
-            weighted_parts.append(anchor[["reit", "date", "val"]])
+        sp["_w_curr"] = sp[metric_curr] * sp["sp_count"]
+        sp["_w_prev"] = sp[metric_prev] * sp["sp_count"]
+        agg = sp.groupby(["reit", "scrape_date"]).agg(
+            _ws_curr=("_w_curr", "sum"),
+            _ws_prev=("_w_prev", "sum"),
+            _ns=("sp_count", "sum"),
+        ).reset_index()
+        agg = agg[agg["_ns"] > 0]
+        agg["wow_factor"] = agg["_ws_curr"] / agg["_ws_prev"]   # = curr_avg / prev_avg
+        agg = agg[["reit", "scrape_date", "wow_factor"]].rename(columns={"scrape_date": "date"})
 
-        if weighted_parts:
-            combined = pd.concat(weighted_parts, ignore_index=True)
-            # If the backfilled baseline date happens to equal an existing
-            # period's scrape_date, prefer the CURRENT value (drop dupe).
-            combined = combined.sort_values(["reit", "date"]).drop_duplicates(
-                subset=["reit", "date"], keep="last"
-            )
-            pivot_raw = combined.pivot(index="date", columns="reit", values="val")
-            pivot_raw = pivot_raw.sort_index()
-            if len(pivot_raw) >= 2:
-                pivot_index = pivot_raw.copy()
-                for col in pivot_index.columns:
-                    first_val = pivot_index[col].dropna().iloc[0] if not pivot_index[col].dropna().empty else None
-                    if first_val and first_val != 0:
-                        pivot_index[col] = (pivot_index[col] / first_val * 100).round(2)
-                return pivot_index, list(pivot_index.columns)
+        # For each REIT, infer the BASELINE date as one week before its
+        # earliest WoW observation, and chain forward.
+        rows = []
+        for reit, grp in agg.groupby("reit"):
+            grp = grp.sort_values("date").reset_index(drop=True)
+            base_date = grp.loc[0, "date"] - pd.Timedelta(days=7)
+            rows.append({"reit": reit, "date": base_date, "index_val": 100.0})
+            running = 100.0
+            for _, r in grp.iterrows():
+                running = running * float(r["wow_factor"])
+                rows.append({"reit": reit, "date": r["date"], "index_val": running})
+
+        if not rows:
+            return None, []
+
+        combined = pd.DataFrame(rows)
+        pivot_index = combined.pivot(index="date", columns="reit", values="index_val")
+        pivot_index = pivot_index.sort_index().round(2)
+        if len(pivot_index) >= 2:
+            return pivot_index, list(pivot_index.columns)
 
     if not sp_df.empty and metric_curr in sp_df.columns and metric_prev in sp_df.columns:
         # Count-weighted from sp_df
