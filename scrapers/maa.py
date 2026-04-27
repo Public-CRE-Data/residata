@@ -66,13 +66,18 @@ _MARKET_MAP = _load_market_map()
 # ── Concession parsing engine ──────────────────────────────────────────────────
 
 # Deposit/fee waivers — NOT rent concessions
-# "Go deposit free with Rhino", "Special security deposit offer: ...",
-# "reduced processing fees"
+# Catches both bare phrases ("deposit free", "rhino") AND "off X" patterns
+# where X is a deposit/fee, e.g. "50% off security deposit",
+# "$500 off application fee", "20% off admin fee".
 _DEPOSIT_EXCLUSION_RE = re.compile(
     r"\b(deposit[\s\-]?free|rhino|deposit\s+waiver|waive.*deposit"
     r"|no\s+deposit|zero\s+deposit|security\s+deposit\s+offer"
-    r"|processing\s+fee|application\s+fee|admin\s+fee"
-    r"|reduced\s+processing)\b",
+    r"|processing\s+fee|application\s+fee|admin(?:istrative)?\s+fee"
+    r"|holding\s+(?:deposit|fee)|pet\s+(?:fee|deposit)|move[- ]in\s+fee"
+    r"|reduced\s+processing"
+    # "off (security|admin|application|...) (deposit|fee)" anywhere in text
+    r"|off\s+(?:your\s+)?(?:security\s+|holding\s+|pet\s+|move[- ]in\s+)?deposit\b"
+    r"|off\s+(?:your\s+)?(?:application|admin(?:istrative)?|processing|holding|move[- ]in|pet)\s+fee\b)",
     re.IGNORECASE,
 )
 
@@ -97,11 +102,13 @@ _HALF_MONTH_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Fractional rent off for N months: "1/2 off rent for the first 4 months"
-# This is (fraction × rent × N_months) total concession
+# Fractional rent off for N months: "1/2 off rent for the first 4 months",
+# "50% off base rent for first 4 months", "50% off your rent for 6 months".
+# Allows up to 3 optional words between "off" and "rent" (e.g., "base", "your",
+# "the monthly"). This is (fraction × rent × N_months) total concession.
 _FRAC_MONTHS_RE = re.compile(
-    r"(1/2|half|50\s*%)\s+(?:off\s+)?(?:of\s+)?rent\s+(?:for\s+)?(?:the\s+)?(?:first\s+)?"
-    r"(\d+)\s*month",
+    r"(1/2|half|50\s*%)\s+(?:off\s+)?(?:of\s+)?(?:[A-Za-z]+\s+){0,3}rent\s+"
+    r"(?:for\s+)?(?:the\s+)?(?:first\s+)?(\d+)\s*month",
     re.IGNORECASE,
 )
 
@@ -181,15 +188,28 @@ def parse_concession(
     text = raw.strip()
 
     # ── Deposit/fee waivers are NOT rent concessions ────────────────────
-    # e.g. "Go deposit free with Rhino", "security deposit offer", "processing fees"
-    # If the ONLY content is a deposit/fee waiver, return nulls.
-    _hard_patterns = [_MONTHS_FREE_RE, _HALF_MONTH_RE, _FRAC_MONTHS_RE,
-                      _DOLLAR_OFF_RE, _PERCENT_OFF_RE, _DATE_FREE_RE,
-                      _MONTH_FREE_RE, _FRAC_NAMED_MONTHS_RE]
-    if _DEPOSIT_EXCLUSION_RE.search(text) and not any(
-        p.search(text) for p in _hard_patterns
-    ):
-        return nulls
+    # e.g. "Go deposit free with Rhino", "security deposit offer",
+    #      "50% off application fee", "$500 off security deposit"
+    #
+    # "Hard" patterns split into two tiers:
+    #   RENT_SPECIFIC = patterns that explicitly reference rent or months
+    #                   (months free, "off rent for X months", date-free, etc.)
+    #   AMBIGUOUS     = patterns that could apply to anything (a bare "X% off"
+    #                   or "$X off" — could be rent, deposit, fee, etc.)
+    #
+    # If deposit/fee context is present, we reject UNLESS a rent-specific
+    # pattern also matches (which would override and indicate a real rent
+    # concession layered on a deposit promo).
+    _RENT_SPECIFIC = [_MONTHS_FREE_RE, _HALF_MONTH_RE, _FRAC_MONTHS_RE,
+                      _DATE_FREE_RE, _MONTH_FREE_RE, _FRAC_NAMED_MONTHS_RE]
+    _AMBIGUOUS_PATTERNS = [_DOLLAR_OFF_RE, _PERCENT_OFF_RE]
+    _hard_patterns = _RENT_SPECIFIC + _AMBIGUOUS_PATTERNS
+
+    if _DEPOSIT_EXCLUSION_RE.search(text):
+        # Only accept if a rent-specific pattern matches the text (not the
+        # ambiguous bare percent/dollar-off, which is likely the deposit/fee).
+        if not any(p.search(text) for p in _RENT_SPECIFIC):
+            return nulls
 
     # ── Non-rent promos (move-in urgency, no actual concession) ──────────
     if not any(p.search(text) for p in _hard_patterns) and _NON_RENT_PROMO_RE.search(text):
