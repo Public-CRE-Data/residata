@@ -1511,23 +1511,43 @@ def build_current_summary(df, sp_df):
 
 def update_summary_history(existing_history_df, new_summary_df):
     """
-    Append new_summary_df rows to existing_history_df, skipping dates already present.
+    Append new_summary_df rows to existing_history_df.
+
+    Per-REIT semantics: if (date, reit) already exists in existing, we keep
+    existing's rows for that REIT untouched; otherwise we add the new rows.
+    This handles the case where one REIT was added in a later run after the
+    date was first written (e.g., MAA scraped a day after the rest).
+
     Returns the updated DataFrame.
     """
     if existing_history_df is None or existing_history_df.empty:
         print(f"  Summary history: creating new with {len(new_summary_df):,} rows")
         return new_summary_df.copy()
 
-    existing_dates = set(existing_history_df["scrape_date"].astype(str).unique())
+    new_summary_df = new_summary_df.copy()
     new_date = str(new_summary_df["scrape_date"].iloc[0])
 
-    if new_date in existing_dates:
-        print(f"  Summary history: date {new_date} already exists, skipping append")
+    # Normalize date column types to string for set arithmetic
+    existing_keys = set(zip(
+        existing_history_df["scrape_date"].astype(str),
+        existing_history_df["reit"].astype(str),
+    ))
+    new_summary_df["_date_str"] = new_summary_df["scrape_date"].astype(str)
+    new_summary_df["_reit_str"] = new_summary_df["reit"].astype(str)
+
+    keep_mask = ~new_summary_df.apply(
+        lambda r: (r["_date_str"], r["_reit_str"]) in existing_keys, axis=1
+    )
+    additions = new_summary_df[keep_mask].drop(columns=["_date_str", "_reit_str"])
+
+    if additions.empty:
+        print(f"  Summary history: date {new_date} fully covered for all REITs, no append needed")
         return existing_history_df.copy()
 
-    combined = pd.concat([existing_history_df, new_summary_df], ignore_index=True)
-    print(f"  Summary history: appended {len(new_summary_df):,} rows for {new_date} "
-          f"(total: {len(combined):,} rows)")
+    new_reits = sorted(additions["reit"].unique())
+    combined = pd.concat([existing_history_df, additions], ignore_index=True)
+    print(f"  Summary history: appended {len(additions):,} rows for {new_date} "
+          f"(REITs: {', '.join(new_reits)}; total: {len(combined):,} rows)")
     return combined
 
 
@@ -1969,18 +1989,42 @@ def build_charts_rent_sheet(wb, df):
 # SHEET 7: Charts_Concessions
 # ─────────────────────────────────────────────────────────────────────────────
 
-def build_charts_concessions_sheet(wb, df):
+def build_charts_concessions_sheet(wb, df, summary_history_df=None):
+    """
+    Build a time-series of REIT-level concession rate.
+
+    Prefers summary_history_df (full history across all weeks) over the
+    panel df (which only contains the latest two weeks). If summary_history
+    is unavailable, falls back to the panel.
+
+    Aggregation: count-weighted across (macro_market, beds) cells using
+    listing_count to match the panel's unit-level mean.
+    """
     ws = wb.create_sheet("Charts_Concessions")
     ws.sheet_view.showGridLines = False
     add_title(ws, "Concession Rate by REIT and Date", row=1)
 
-    grp = (
-        df.groupby(["scrape_date", "reit"])["has_concession"]
-        .mean()
-        .reset_index()
-        .rename(columns={"has_concession": "concession_rate"})
-    )
-    grp["scrape_date"] = grp["scrape_date"].apply(lambda x: str(x)[:10])
+    if (summary_history_df is not None and not summary_history_df.empty
+            and "concession_rate" in summary_history_df.columns
+            and "listing_count" in summary_history_df.columns):
+        hist = summary_history_df.copy()
+        hist["scrape_date"] = pd.to_datetime(hist["scrape_date"]).dt.strftime("%Y-%m-%d")
+        # Count-weighted aggregate: sum(rate * count) / sum(count)
+        hist["_n_conc"] = hist["concession_rate"] * hist["listing_count"]
+        agg = hist.groupby(["scrape_date", "reit"]).agg(
+            n_conc=("_n_conc", "sum"),
+            n_total=("listing_count", "sum"),
+        ).reset_index()
+        agg["concession_rate"] = agg["n_conc"] / agg["n_total"]
+        grp = agg[["scrape_date", "reit", "concession_rate"]]
+    else:
+        grp = (
+            df.groupby(["scrape_date", "reit"])["has_concession"]
+            .mean()
+            .reset_index()
+            .rename(columns={"has_concession": "concession_rate"})
+        )
+        grp["scrape_date"] = grp["scrape_date"].apply(lambda x: str(x)[:10])
 
     dates_sorted = sorted(grp["scrape_date"].unique())
     reits_sorted = sorted(grp["reit"].unique())
@@ -3069,7 +3113,7 @@ def main():
     print("  Building: Charts_Rent")
     build_charts_rent_sheet(wb, df)
     print("  Building: Charts_Concessions")
-    build_charts_concessions_sheet(wb, df)
+    build_charts_concessions_sheet(wb, df, summary_history_df=summary_history_df)
     print("  Building: Same_Prop_Trends")
     build_same_prop_sheet(wb, df, sp_df, summary_history_df=summary_history_df)
 
