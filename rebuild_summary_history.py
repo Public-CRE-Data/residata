@@ -207,10 +207,106 @@ def _safe_div(a, b):
     return a / b
 
 
+def _compute_reit_sp(panel, reit, prev_date, curr_date):
+    """Compute SP aggregates for one (REIT, prev_date, curr_date) triple.
+    Returns a DataFrame with one row per (reit, macro_market, beds) bucket,
+    containing all sp_* columns. Cohort = unit_ids in BOTH dates for this
+    REIT. Used to support cross-week bridging when prev_date is not the
+    immediate predecessor of curr_date."""
+    prev = panel[(panel["reit"] == reit) & (panel["scrape_date"] == prev_date)].copy()
+    curr = panel[(panel["reit"] == reit) & (panel["scrape_date"] == curr_date)].copy()
+    if prev.empty or curr.empty:
+        return None
+
+    for d in (prev, curr):
+        d["_rent_psf"] = d.apply(
+            lambda r: r["rent"] / r["sqft"]
+            if pd.notna(r["sqft"]) and r["sqft"] > 0 and pd.notna(r["rent"]) else None,
+            axis=1)
+        d["_eff_rent_psf"] = d.apply(
+            lambda r: r["effective_monthly_rent"] / r["sqft"]
+            if pd.notna(r.get("effective_monthly_rent"))
+               and pd.notna(r["sqft"]) and r["sqft"] > 0 else None,
+            axis=1)
+
+    sp_ids = set(prev["unit_id"].dropna()) & set(curr["unit_id"].dropna())
+    prev_sp = prev[prev["unit_id"].isin(sp_ids)].copy()
+    curr_sp = curr[curr["unit_id"].isin(sp_ids)].copy()
+    if prev_sp.empty or curr_sp.empty:
+        return None
+
+    prev_sp["_eff_matched"] = prev_sp["effective_monthly_rent"]
+    prev_sp["_eff_psf_matched"] = prev_sp["_eff_rent_psf"]
+    curr_sp["_eff_matched"] = curr_sp["effective_monthly_rent"]
+    curr_sp["_eff_psf_matched"] = curr_sp["_eff_rent_psf"]
+
+    keys = ["reit", "macro_market", "beds"]
+    prev_grp = prev_sp.groupby(keys, dropna=False).agg(
+        sp_avg_rent_prev=("rent", "mean"),
+        sp_concession_rate_prev=("has_concession", "mean"),
+        sp_count_prev=("unit_id", "count"),
+        sp_avg_rent_psf_prev=("_rent_psf", "mean"),
+        sp_avg_eff_rent_prev=("_eff_matched", "mean"),
+        sp_avg_eff_rent_psf_prev=("_eff_psf_matched", "mean"),
+    ).reset_index()
+    curr_grp = curr_sp.groupby(keys, dropna=False).agg(
+        sp_avg_rent_curr=("rent", "mean"),
+        sp_concession_rate_curr=("has_concession", "mean"),
+        sp_count_curr=("unit_id", "count"),
+        sp_avg_rent_psf_curr=("_rent_psf", "mean"),
+        sp_avg_eff_rent_curr=("_eff_matched", "mean"),
+        sp_avg_eff_rent_psf_curr=("_eff_psf_matched", "mean"),
+    ).reset_index()
+    sp = pd.merge(prev_grp, curr_grp, on=keys, how="inner")
+    if sp.empty:
+        return None
+    sp["sp_count"] = sp["sp_count_curr"]
+    sp["sp_wow_pct"] = (sp["sp_avg_rent_curr"] - sp["sp_avg_rent_prev"]) / sp["sp_avg_rent_prev"]
+    sp["sp_wow_pct_psf"] = sp.apply(
+        lambda r: _safe_div(r["sp_avg_rent_psf_curr"] - r["sp_avg_rent_psf_prev"],
+                            r["sp_avg_rent_psf_prev"]), axis=1)
+    sp["sp_wow_pct_eff"] = sp.apply(
+        lambda r: _safe_div(r["sp_avg_eff_rent_curr"] - r["sp_avg_eff_rent_prev"],
+                            r["sp_avg_eff_rent_prev"]), axis=1)
+    sp["sp_wow_pct_eff_psf"] = sp.apply(
+        lambda r: _safe_div(r["sp_avg_eff_rent_psf_curr"] - r["sp_avg_eff_rent_psf_prev"],
+                            r["sp_avg_eff_rent_psf_prev"]), axis=1)
+    return sp
+
+
 def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
-    """Build a complete week-by-week same-property history."""
+    """Build a complete week-by-week same-property history.
+
+    Cross-week bridging: when a REIT has a community-coverage gap with
+    its immediate prior week, we look further back for the most recent
+    "clean" prior week (one without a gap to the current week) and use
+    THAT as the SP comparison anchor. The chain-link factor still works
+    because the chain just multiplies wow_factors; spacing between
+    factors can be irregular.
+
+    Example: MAA had 19% gap from 3-28 to 4-4 and 14% gap from 4-4 to
+    4-11. Instead of nulling MAA at both 4-4 and 4-11, we:
+      - Null MAA at 4-4 (no clean prior to compare with)
+      - Compute MAA at 4-11 by matching units against 3-28 directly
+        (3-28 to 4-11 had only ~6% community gap — passes threshold)
+    """
     dates = sorted(panel["scrape_date"].dropna().unique())
     print(f"  Distinct weeks: {len(dates)}  ({[d.date().isoformat() for d in dates]})")
+
+    coverage_gaps = panel.attrs.get("_coverage_gaps", {})
+    GAP_THRESHOLD = 0.10
+
+    def _has_gap(reit, prev_d, curr_d, panel_df):
+        """Check if (reit, prev_d -> curr_d) has community coverage gap."""
+        p_comms = set(panel_df[(panel_df["reit"] == reit)
+                                & (panel_df["scrape_date"] == prev_d)]["community"].dropna())
+        c_comms = set(panel_df[(panel_df["reit"] == reit)
+                                & (panel_df["scrape_date"] == curr_d)]["community"].dropna())
+        if len(p_comms) < 30 or len(c_comms) < 30:
+            return True   # not enough data to be confident
+        miss_pct = len(p_comms - c_comms) / max(len(p_comms), 1)
+        new_pct = len(c_comms - p_comms) / max(len(c_comms), 1)
+        return miss_pct >= GAP_THRESHOLD or new_pct >= GAP_THRESHOLD
 
     all_rows = []
 
@@ -242,8 +338,50 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
         ).reset_index()
         nonsp["scrape_date"] = curr_date
 
-        # ── SP aggregates (need prior period) ────────────────────────
+        # ── SP aggregates (per-REIT prev-period selection w/ bridging) ──
         if i > 0:
+            # For each REIT, find the appropriate prev_date — by default
+            # the immediate prior, but bridge over gapped weeks.
+            sp_per_reit_chunks = []
+            reits_in_curr = curr["reit"].unique()
+            for reit in reits_in_curr:
+                # Walk backwards to find most recent non-gap prior week
+                prev_date = None
+                for j in range(i - 1, -1, -1):
+                    candidate = dates[j]
+                    if not _has_gap(reit, candidate, curr_date, panel):
+                        prev_date = candidate
+                        break
+                if prev_date is None:
+                    continue   # no clean prior — skip SP for this REIT
+                if prev_date != dates[i - 1]:
+                    print(f"    [BRIDGE] {reit} {curr_date.date()}: bridging to {prev_date.date()} "
+                          f"(skipped {(curr_date - prev_date).days // 7 - 1} gap week(s))")
+                # Compute SP for this REIT alone using prev_date
+                reit_sp = _compute_reit_sp(panel, reit, prev_date, curr_date)
+                if reit_sp is not None and not reit_sp.empty:
+                    sp_per_reit_chunks.append(reit_sp)
+
+            sp = pd.concat(sp_per_reit_chunks, ignore_index=True) if sp_per_reit_chunks else pd.DataFrame()
+            keys = ["reit", "macro_market", "beds"]
+            if not sp.empty:
+                merged = nonsp.merge(sp, on=keys, how="left")
+            else:
+                merged = nonsp.copy()
+                # Fill SP columns with NaN
+                for c in ["sp_count", "sp_avg_rent_curr", "sp_avg_rent_prev", "sp_wow_pct",
+                          "sp_concession_rate_curr", "sp_concession_rate_prev",
+                          "sp_avg_rent_psf_curr", "sp_avg_rent_psf_prev", "sp_wow_pct_psf",
+                          "sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev", "sp_wow_pct_eff",
+                          "sp_avg_eff_rent_psf_curr", "sp_avg_eff_rent_psf_prev",
+                          "sp_wow_pct_eff_psf"]:
+                    merged[c] = None
+
+            all_rows.append(merged)
+            continue   # skip the legacy single-prev path below
+
+        # Legacy single-prev path (i == 0 only — first week, no SP)
+        if False:   # never executes; kept to preserve indentation below
             prev_date = dates[i - 1]
             prev = panel[panel["scrape_date"] == prev_date].copy()
             prev["_rent_psf"] = prev.apply(
@@ -309,26 +447,11 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
 
     hist = pd.concat(all_rows, ignore_index=True)
 
-    # ── Null SP values for REIT-week pairs flagged for coverage gap ─
-    # coverage_gaps now keyed by (reit, curr_week) — generalized across
-    # ALL pair-weeks where prev/curr communities differ by ≥10%.
-    coverage_gaps = panel.attrs.get("_coverage_gaps", {})
-    sp_null_cols = ["sp_count", "sp_avg_rent_curr", "sp_avg_rent_prev", "sp_wow_pct",
-                    "sp_concession_rate_curr", "sp_concession_rate_prev",
-                    "sp_avg_rent_psf_curr", "sp_avg_rent_psf_prev", "sp_wow_pct_psf",
-                    "sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev", "sp_wow_pct_eff",
-                    "sp_avg_eff_rent_psf_curr", "sp_avg_eff_rent_psf_prev",
-                    "sp_wow_pct_eff_psf"]
-    if coverage_gaps:
-        for (reit, curr_wk) in coverage_gaps:
-            mask = (hist["reit"] == reit) & (hist["scrape_date"] == curr_wk)
-            n = int(mask.sum())
-            if n:
-                for c in sp_null_cols:
-                    if c in hist.columns:
-                        hist.loc[mask, c] = None
-                print(f"  [FIX] Nulled {n} rows of {reit} SP metrics on {curr_wk.date()} "
-                      f"(>=10% community coverage gap with prior week).")
+    # Note: coverage-gap handling is now done INLINE in compute_history
+    # via cross-week bridging — for each (reit, curr_week) we walk back
+    # to the most recent clean prior week. If no clean prior exists, the
+    # SP merge yields no rows for that (reit, week) so the merged row
+    # naturally has NaN SP columns. No post-hoc nulling needed.
 
     # Column order matches existing summary_history.csv
     col_order = ["scrape_date", "reit", "macro_market", "beds", "listing_count",
