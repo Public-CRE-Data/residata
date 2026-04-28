@@ -7,10 +7,16 @@
 #   0. Pre-flight: ensure Playwright browsers are installed
 #   1. Run all scrapers (MAA, CPT, EQR, AVB, UDR, ESS, INVH, AMH)
 #   2. Split any CSV > 4,000 rows or > 1.5 MB into _part1 / _part2
-#   3. Git add + commit + push to GitHub
-#   4. Rebuild Excel workbook via build_excel.py (pulls from GitHub)
+#   3. Git add + commit + push raw CSVs to GitHub
+#   3b. Regenerate summary_history.csv from full archive (re-applies all
+#       current parser/coalesce/coverage/bridging logic to ALL history
+#       so prior weeks benefit from any fixes shipped since).
+#   4. Rebuild Excel workbook via build_excel.py
 #   5. Run week-over-week data quality checks (wow_qa.py)
+#   5b. Detailed per-market WoW audit (wow_audit.py)
+#   5c. Comprehensive data integrity audit (data_integrity_audit.py)
 #   6. Build equity research charts workbook (build_charts.py)
+#   7. Commit regenerated summary_history (git push final)
 #
 # Logs to: logs/weekly_YYYY-MM-DD.log
 
@@ -180,6 +186,50 @@ def git_push():
         logger.warning("  Push may have failed — check stderr above.")
 
 
+def rebuild_summary_history_from_scratch():
+    """Step 3b: Re-build summary_history.csv from scratch using ALL raw CSVs.
+
+    Why we re-build every week instead of just appending:
+    Every weekly pipeline run reflects the LATEST versions of:
+      • parse_concession() in scrapers/maa.py (parser fixes propagate)
+      • Soft-concession NER coalesce
+      • AMH bare-percent / ESS / UDR week-1 fixes
+      • Coverage-gap detection (>=10% community gap → null)
+      • Cross-week bridging (skip gapped weeks, find clean prior)
+    By rebuilding from scratch, ALL of these consistently apply to the
+    full history. If we only appended new rows, fixes would silently
+    not back-propagate to prior weeks, and chain-link indices could
+    show stale data points anchored to old logic.
+
+    Output: data/summary/summary_history.csv (committed by the next run
+    if changed via git_push step earlier — note: we run this AFTER the
+    git push so summary_history regen is committed on the NEXT week's
+    push. That's acceptable because the workbook is what consumers see.)
+    """
+    logger.info("=" * 60)
+    logger.info("  STEP 3b: Regenerate summary_history.csv from full archive")
+    logger.info("=" * 60)
+    try:
+        result = subprocess.run(
+            [sys.executable, str(BASE_DIR / "rebuild_summary_history.py")],
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=900,
+        )
+        # Surface the BRIDGE / GAP / FIX lines explicitly, suppress noise
+        for line in result.stdout.splitlines():
+            if any(tag in line for tag in ("[BRIDGE]", "[GAP]", "[FIX]",
+                                            "[NER]", "[Rebuild]", "Wrote")):
+                logger.info(f"  {line}")
+        if result.returncode != 0:
+            logger.error(f"  rebuild_summary_history exited with code {result.returncode}")
+            if result.stderr.strip():
+                logger.error(f"  stderr: {result.stderr.strip()[:500]}")
+    except Exception as e:
+        logger.error(f"  rebuild_summary_history failed: {type(e).__name__}: {e}")
+
+
 def rebuild_excel():
     """Step 4: Rebuild the Excel workbook from GitHub data."""
     logger.info("=" * 60)
@@ -283,6 +333,44 @@ def run_integrity_audit():
         logger.error(f"  Integrity audit failed to run: {type(e).__name__}: {e}")
 
 
+def final_push_summary_history():
+    """Step 7: Commit + push regenerated summary_history.csv.
+
+    The Step 3b rebuild may have changed historical rows when current
+    logic differs from what was committed previously. Pushing it keeps
+    the GitHub copy authoritative.
+    """
+    logger.info("=" * 60)
+    logger.info("  STEP 7: Push regenerated summary_history")
+    logger.info("=" * 60)
+
+    def git(*args):
+        result = subprocess.run(
+            ["git"] + list(args),
+            cwd=str(BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.stdout.strip():
+            logger.info(f"  git {' '.join(args)}: {result.stdout.strip()[:200]}")
+        if result.stderr.strip():
+            logger.info(f"  stderr: {result.stderr.strip()[:200]}")
+        return result
+
+    git("add", "data/summary/summary_history.csv")
+    status = git("status", "--porcelain", "data/summary/summary_history.csv")
+    if not status.stdout.strip():
+        logger.info("  summary_history.csv unchanged — nothing to push.")
+        return
+    git("commit", "-m", f"Weekly summary_history regen {today}")
+    result = git("push")
+    if "-> main" in (result.stderr + result.stdout):
+        logger.info("  summary_history pushed.")
+    else:
+        logger.warning("  Push may have failed.")
+
+
 def build_research_charts():
     """Step 6: Rebuild the research charts workbook for publication."""
     logger.info("=" * 60)
@@ -324,8 +412,14 @@ def main():
     # Step 2: Split large CSVs
     split_large_csvs()
 
-    # Step 3: Push to GitHub
+    # Step 3: Push raw data to GitHub
     git_push()
+
+    # Step 3b: Regenerate summary_history.csv from full archive.
+    # All current logic (parser fixes, coalesce rules, coverage-gap
+    # detection, cross-week bridging) re-applies to the full history.
+    # This is what builds the chain-link indices used by every chart.
+    rebuild_summary_history_from_scratch()
 
     # Step 4: Rebuild Excel
     rebuild_excel()
@@ -341,6 +435,11 @@ def main():
 
     # Step 6: Research charts workbook
     build_research_charts()
+
+    # Step 7: Commit regenerated summary_history if it changed.
+    # The rebuild step regenerates the full history with current logic;
+    # we push it so next week's scrape sees the latest state.
+    final_push_summary_history()
 
     logger.info("")
     logger.info("=" * 60)
