@@ -418,6 +418,126 @@ def check_distribution_shifts(weeks, fnd: Findings):
                             pair=f"{series[i - 1][0]}/{series[i][0]}", reit=reit)
 
 
+# ── F2) Community coverage gaps (week N vs N+1) ───────────────────────────
+
+def check_community_coverage_gaps(weeks, fnd: Findings):
+    """Flag REIT-week pairs where the prev period had communities (entire
+    properties) that don't appear in the next period. The sp_count
+    intersection-based same-property pool then under-represents those
+    communities, biasing aggregates.
+
+    Threshold: >10 communities missing in next period AND prev had >50
+    total communities (large enough sample)."""
+    if len(weeks) < 2:
+        return
+    pairs = list(zip(weeks[:-1], weeks[1:]))
+    for prev_wk, curr_wk in pairs:
+        prev_df = _load_week(prev_wk)
+        curr_df = _load_week(curr_wk)
+        if prev_df.empty or curr_df.empty:
+            continue
+        for reit in sorted(set(prev_df["reit"].unique()) | set(curr_df["reit"].unique())):
+            p_comms = set(prev_df[prev_df["reit"] == reit]["community"].dropna())
+            c_comms = set(curr_df[curr_df["reit"] == reit]["community"].dropna())
+            if len(p_comms) < 50:
+                continue
+            missing_in_curr = p_comms - c_comms
+            new_in_curr = c_comms - p_comms
+            if len(missing_in_curr) > 10:
+                pct = len(missing_in_curr) / len(p_comms) * 100
+                fnd.add("WARN", "community_coverage_gap",
+                        f"{reit} {prev_wk} -> {curr_wk}: {len(missing_in_curr)} communities "
+                        f"in prev ({pct:.1f}% of {len(p_comms)} total) missing from curr — "
+                        f"matched-pool will under-represent these properties. "
+                        f"Sample: {sorted(list(missing_in_curr))[:3]}",
+                        pair=f"{prev_wk}/{curr_wk}", reit=reit)
+            if len(new_in_curr) > 10:
+                pct = len(new_in_curr) / len(c_comms) * 100
+                fnd.add("WARN", "community_coverage_gap",
+                        f"{reit} {prev_wk} -> {curr_wk}: {len(new_in_curr)} new communities "
+                        f"in curr ({pct:.1f}% of {len(c_comms)} total) — these can't be matched "
+                        f"and shift the SP pool composition. Sample: {sorted(list(new_in_curr))[:3]}",
+                        pair=f"{prev_wk}/{curr_wk}", reit=reit)
+
+
+# ── F3) Concession rate volatility ────────────────────────────────────────
+
+def check_conc_rate_volatility(weeks, fnd: Findings):
+    """Flag REIT-week pairs with concession rate moving >5 ppts WoW.
+    Decompose the cause:
+      • matched-unit conc flips (real concession behavior change), or
+      • new/lost listings shifting the composition
+    Composition-driven moves >3 ppts get a separate WARN tag because the
+    aggregate change isn't a true concession-strategy signal."""
+    if len(weeks) < 2:
+        return
+    pairs = list(zip(weeks[:-1], weeks[1:]))
+    for prev_wk, curr_wk in pairs:
+        prev_df = _load_week(prev_wk)
+        curr_df = _load_week(curr_wk)
+        if prev_df.empty or curr_df.empty:
+            continue
+        for reit in sorted(set(prev_df["reit"].unique()) | set(curr_df["reit"].unique())):
+            p = prev_df[prev_df["reit"] == reit]
+            c = curr_df[curr_df["reit"] == reit]
+            if len(p) < 100 or len(c) < 100:
+                continue
+            prior_rate = p["has_concession"].mean() * 100
+            curr_rate = c["has_concession"].mean() * 100
+            delta = curr_rate - prior_rate
+            if abs(delta) < 5.0:
+                continue   # within normal weekly noise
+
+            # Decompose
+            p_ids = set(p["unit_id"]); c_ids = set(c["unit_id"])
+            matched = p_ids & c_ids
+            pm = p[p["unit_id"].isin(matched)].set_index("unit_id")
+            cm = c[c["unit_id"].isin(matched)].set_index("unit_id")
+            pm = pm.loc[~pm.index.duplicated(keep="last")]
+            cm = cm.loc[~cm.index.duplicated(keep="last")]
+            common = pm.index.intersection(cm.index)
+            pm = pm.loc[common]; cm = cm.loc[common]
+            new_conc = int(((~pm["has_concession"]) & cm["has_concession"]).sum())
+            lost_conc = int((pm["has_concession"] & (~cm["has_concession"])).sum())
+
+            new_listings = c[c["unit_id"].isin(c_ids - p_ids)]
+            lost_listings = p[p["unit_id"].isin(p_ids - c_ids)]
+            n_new_listings = len(new_listings)
+            n_lost_listings = len(lost_listings)
+
+            # Net flip impact on rate (assuming matched pool size ~ total)
+            net_flip = new_conc - lost_conc
+            net_flip_pct = net_flip / max(len(common), 1) * 100
+
+            # Composition impact (new minus lost listings, weighted by their conc rates)
+            new_with_conc = int(new_listings["has_concession"].sum())
+            lost_with_conc = int(lost_listings["has_concession"].sum())
+            composition_impact = (new_with_conc - lost_with_conc) / max(len(c), 1) * 100
+
+            # Total listing turnover as % of prev
+            turnover_pct = (n_new_listings + n_lost_listings) / max(len(p), 1) * 100
+
+            severity = "WARN"
+            tag_extra = ""
+            # 30% weekly turnover is normal for AVB/UDR (units rent fast).
+            # Only call out turnover as scraper-related when it's extreme (>45%).
+            if turnover_pct > 45:
+                tag_extra = f" [HIGH TURNOVER {turnover_pct:.0f}% — likely scraper coverage shift]"
+            elif abs(composition_impact) > abs(net_flip_pct):
+                tag_extra = (f" [composition-driven (new-vs-lost listing mix shift "
+                             f"contributed {composition_impact:+.1f}ppts vs flips {net_flip_pct:+.1f}ppts)]")
+            else:
+                tag_extra = (f" [matched-flip driven (flips {net_flip_pct:+.1f}ppts dominate "
+                             f"composition {composition_impact:+.1f}ppts)]")
+
+            fnd.add(severity, "conc_rate_volatility",
+                    f"{reit} {prev_wk} -> {curr_wk}: conc rate {prior_rate:.1f}% -> {curr_rate:.1f}% "
+                    f"(Δ={delta:+.1f} ppts). Matched flips: +{new_conc}/−{lost_conc} on "
+                    f"{len(common):,} matched. New listings: {n_new_listings:,} ({new_with_conc} w/conc). "
+                    f"Lost listings: {n_lost_listings:,} ({lost_with_conc} w/conc).{tag_extra}",
+                    pair=f"{prev_wk}/{curr_wk}", reit=reit)
+
+
 # ── G) Identical-text floods ──────────────────────────────────────────────
 
 def check_identical_text_floods(weeks, fnd: Findings):
@@ -506,6 +626,10 @@ def main():
     check_cross_reit_outlier(sh, fnd)
     print("  [check F] pool-size shifts...")
     check_distribution_shifts(weeks, fnd)
+    print("  [check F2] community coverage gaps...")
+    check_community_coverage_gaps(weeks, fnd)
+    print("  [check F3] concession rate volatility decomposition...")
+    check_conc_rate_volatility(weeks, fnd)
     print("  [check G] identical-text floods...")
     check_identical_text_floods(weeks, fnd)
     print("  [check H] source-code regression...")
