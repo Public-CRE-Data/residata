@@ -155,30 +155,48 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
     # pool lacks the under-covered market). Flag those REIT-date pairs
     # so downstream can null their sp_* values.
     print("  [COVERAGE] Checking first-week market coverage per REIT...")
-    coverage_gaps = {}
+    # Coverage-gap detection generalized across ALL pair-week combinations.
+    # For each (REIT, pair = N-1 -> N): if either side has communities missing
+    # from the other side that account for >10% of either week's communities,
+    # the matched-pool composition is biased and that pair's sp_* values
+    # should be nulled for that REIT.
+    #
+    # Two flavors of gap:
+    #   missing_in_curr = communities in PREV but not in CURR  (under-rep)
+    #   new_in_curr     = communities in CURR but not in PREV  (over-rep)
+    # Either ≥10% triggers exclusion.
+    coverage_gaps = {}    # (reit, curr_date) -> list of gap descriptions
     weeks = sorted(df["scrape_date"].unique())
-    if len(weeks) >= 2:
-        w0, w1 = weeks[0], weeks[1]
+    THRESHOLD = 0.10
+    for i in range(1, len(weeks)):
+        prev_wk, curr_wk = weeks[i - 1], weeks[i]
         for reit in df["reit"].unique():
-            w0_mkts = df[(df["reit"] == reit) & (df["scrape_date"] == w0)]
-            w1_mkts = df[(df["reit"] == reit) & (df["scrape_date"] == w1)]
-            if len(w0_mkts) == 0 or len(w1_mkts) == 0:
+            p_comms = set(df[(df["reit"] == reit) & (df["scrape_date"] == prev_wk)]
+                          ["community"].dropna())
+            c_comms = set(df[(df["reit"] == reit) & (df["scrape_date"] == curr_wk)]
+                          ["community"].dropna())
+            if len(p_comms) < 30 or len(c_comms) < 30:
                 continue
-            w0_mkt_counts = w0_mkts["macro_market"].value_counts()
-            w1_mkt_counts = w1_mkts["macro_market"].value_counts()
-            w1_total = w1_mkt_counts.sum()
-            # Find markets in week 2 that are missing or <10% of week 2 presence in week 1
-            for mkt, w1_n in w1_mkt_counts.items():
-                w0_n = w0_mkt_counts.get(mkt, 0)
-                if w1_n >= 50 and (w0_n / max(w1_n, 1)) < 0.10:
-                    coverage_gaps.setdefault(reit, []).append(
-                        (mkt, int(w0_n), int(w1_n))
-                    )
-    for reit, gaps in coverage_gaps.items():
-        gap_desc = ", ".join(f"{m} ({a}->{b})" for m, a, b in gaps)
-        print(f"    [FLAG] {reit} first-week ({w0.date()}) coverage gaps: {gap_desc}")
+            missing = p_comms - c_comms
+            new_in = c_comms - p_comms
+            miss_pct = len(missing) / max(len(p_comms), 1)
+            new_pct = len(new_in) / max(len(c_comms), 1)
+            if miss_pct >= THRESHOLD or new_pct >= THRESHOLD:
+                key = (reit, curr_wk)
+                gap_msg = (f"missing {len(missing)}/{len(p_comms)} ({miss_pct:.0%}), "
+                           f"new {len(new_in)}/{len(c_comms)} ({new_pct:.0%})")
+                coverage_gaps[key] = gap_msg
 
-    # Stash for use in compute_history
+    if coverage_gaps:
+        # Group flags by REIT for readable output
+        from collections import defaultdict
+        by_reit = defaultdict(list)
+        for (reit, wk), msg in coverage_gaps.items():
+            by_reit[reit].append((wk, msg))
+        for reit in sorted(by_reit):
+            for wk, msg in sorted(by_reit[reit]):
+                print(f"    [GAP] {reit} pair ending {wk.date()}: {msg}")
+
     df.attrs["_coverage_gaps"] = coverage_gaps
     return df
 
@@ -292,26 +310,25 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
     hist = pd.concat(all_rows, ignore_index=True)
 
     # ── Null SP values for REIT-week pairs flagged for coverage gap ─
-    # If week N had incomplete coverage for REIT X, then the SP pair
-    # (N, N+1) is composition-biased. Null X's sp_* in week N+1.
+    # coverage_gaps now keyed by (reit, curr_week) — generalized across
+    # ALL pair-weeks where prev/curr communities differ by ≥10%.
     coverage_gaps = panel.attrs.get("_coverage_gaps", {})
-    if coverage_gaps and len(dates) >= 2:
-        second_week = dates[1]
-        sp_null_cols = ["sp_count", "sp_avg_rent_curr", "sp_avg_rent_prev", "sp_wow_pct",
-                        "sp_concession_rate_curr", "sp_concession_rate_prev",
-                        "sp_avg_rent_psf_curr", "sp_avg_rent_psf_prev", "sp_wow_pct_psf",
-                        "sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev", "sp_wow_pct_eff",
-                        "sp_avg_eff_rent_psf_curr", "sp_avg_eff_rent_psf_prev",
-                        "sp_wow_pct_eff_psf"]
-        for reit in coverage_gaps:
-            mask = (hist["reit"] == reit) & (hist["scrape_date"] == second_week)
+    sp_null_cols = ["sp_count", "sp_avg_rent_curr", "sp_avg_rent_prev", "sp_wow_pct",
+                    "sp_concession_rate_curr", "sp_concession_rate_prev",
+                    "sp_avg_rent_psf_curr", "sp_avg_rent_psf_prev", "sp_wow_pct_psf",
+                    "sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev", "sp_wow_pct_eff",
+                    "sp_avg_eff_rent_psf_curr", "sp_avg_eff_rent_psf_prev",
+                    "sp_wow_pct_eff_psf"]
+    if coverage_gaps:
+        for (reit, curr_wk) in coverage_gaps:
+            mask = (hist["reit"] == reit) & (hist["scrape_date"] == curr_wk)
             n = int(mask.sum())
             if n:
                 for c in sp_null_cols:
                     if c in hist.columns:
                         hist.loc[mask, c] = None
-                print(f"  [FIX] Nulled {n} rows of {reit} SP metrics on {second_week.date()} "
-                      f"(first-week coverage gap means N-1->N pair is biased).")
+                print(f"  [FIX] Nulled {n} rows of {reit} SP metrics on {curr_wk.date()} "
+                      f"(>=10% community coverage gap with prior week).")
 
     # Column order matches existing summary_history.csv
     col_order = ["scrape_date", "reit", "macro_market", "beds", "listing_count",
