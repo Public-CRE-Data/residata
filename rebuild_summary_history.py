@@ -175,7 +175,8 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
                           ["community"].dropna())
             c_comms = set(df[(df["reit"] == reit) & (df["scrape_date"] == curr_wk)]
                           ["community"].dropna())
-            if len(p_comms) < 30 or len(c_comms) < 30:
+            # Adaptive minimum (SFR REITs have small community counts):
+            if len(p_comms) < 10 or len(c_comms) < 10:
                 continue
             missing = p_comms - c_comms
             new_in = c_comms - p_comms
@@ -297,13 +298,26 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
     GAP_THRESHOLD = 0.10
 
     def _has_gap(reit, prev_d, curr_d, panel_df):
-        """Check if (reit, prev_d -> curr_d) has community coverage gap."""
+        """Check if (reit, prev_d -> curr_d) has community coverage gap.
+
+        For multifamily REITs (AVB/CPT/EQR/ESS/MAA/UDR), 'community' is
+        an apartment complex — they have 150-300+ per REIT. For SFR REITs
+        (AMH/INVH), 'community' is the market name (e.g., 'Atlanta') —
+        they have only 20-40. So we use an adaptive minimum: at least
+        80% of the REIT's typical community count must be present, with
+        an absolute floor of 10."""
+        p_unit_n = len(panel_df[(panel_df["reit"] == reit)
+                                 & (panel_df["scrape_date"] == prev_d)])
+        c_unit_n = len(panel_df[(panel_df["reit"] == reit)
+                                 & (panel_df["scrape_date"] == curr_d)])
+        if p_unit_n < 100 or c_unit_n < 100:
+            return True   # not enough units to be confident
         p_comms = set(panel_df[(panel_df["reit"] == reit)
                                 & (panel_df["scrape_date"] == prev_d)]["community"].dropna())
         c_comms = set(panel_df[(panel_df["reit"] == reit)
                                 & (panel_df["scrape_date"] == curr_d)]["community"].dropna())
-        if len(p_comms) < 30 or len(c_comms) < 30:
-            return True   # not enough data to be confident
+        if len(p_comms) < 10 or len(c_comms) < 10:
+            return True
         miss_pct = len(p_comms - c_comms) / max(len(p_comms), 1)
         new_pct = len(c_comms - p_comms) / max(len(c_comms), 1)
         return miss_pct >= GAP_THRESHOLD or new_pct >= GAP_THRESHOLD

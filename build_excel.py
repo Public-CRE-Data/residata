@@ -3148,8 +3148,29 @@ def main():
         print("[ERROR] No files downloaded. Check token, owner, repo, and DATA_PATH.")
         sys.exit(1)
 
-    # Step 1b: Download existing summary_history.csv from GitHub
-    existing_history = fetch_summary_history()
+    # Step 1b: Load existing summary_history.csv.
+    # Prefer the LOCAL file if it's newer than the GitHub copy — this
+    # supports the weekly pipeline order where rebuild_summary_history.py
+    # writes a freshly bridged/coverage-checked file to disk before
+    # build_excel.py runs. If we always fetched from GitHub, we'd
+    # overwrite that bridging fix with the previous week's stale state.
+    local_summary = os.path.join(LOCAL_SUMMARY_DIR, "summary_history.csv")
+    use_local = False
+    if os.path.exists(local_summary):
+        try:
+            existing_history = pd.read_csv(local_summary)
+            n_local = len(existing_history)
+            # If file has reasonable size, prefer local — it reflects the
+            # latest rebuild logic (parser fixes, bridging, coalesce, etc.)
+            if n_local >= 1000:
+                print(f"  Using local summary_history.csv: {n_local:,} rows "
+                      f"(skipping GitHub fetch).")
+                use_local = True
+        except Exception as e:
+            print(f"  [WARN] Could not read local summary_history.csv: {e}")
+
+    if not use_local:
+        existing_history = fetch_summary_history()
 
     # Step 1c: Download registry
     print("\n[Step 1b] Fetching unit registry...")
@@ -3172,12 +3193,19 @@ def main():
     sp_df = compute_same_property(df)
 
     # Step 5b: Build & update summary_history
-    print("\n[Step 5b] Updating summary history...")
-    current_summary = build_current_summary(df, sp_df)
-    summary_history_df = update_summary_history(existing_history, current_summary)
-
-    # Save summary_history locally
-    save_summary_history(summary_history_df)
+    # When use_local=True, the local file already came from
+    # rebuild_summary_history.py which has full bridging/coverage-gap
+    # logic and includes the current week. Skip the update step to avoid
+    # overwriting bridged values with non-bridged ones from compute_same_property.
+    if use_local:
+        print("\n[Step 5b] Skipping summary_history update — using local rebuild as-is.")
+        summary_history_df = existing_history
+    else:
+        print("\n[Step 5b] Updating summary history...")
+        current_summary = build_current_summary(df, sp_df)
+        summary_history_df = update_summary_history(existing_history, current_summary)
+        # Save summary_history locally
+        save_summary_history(summary_history_df)
 
     # Step 6: Build Excel
     print("\n[Step 6] Building Excel workbook...")

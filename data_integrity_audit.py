@@ -190,21 +190,52 @@ class Findings:
 # ── A) Bucket vs matched-unit divergence ──────────────────────────────────
 
 def check_bucket_vs_matched(weeks, summary_history_df, fnd: Findings):
-    pairs = list(zip(weeks[:-1], weeks[1:]))
+    """Cross-check that bucket-level chain-link WoW (from summary_history)
+    matches the unit-level matched comparison.
+
+    Critical: when a (REIT, week) was bridged across a coverage-gap week,
+    the bucket WoW reflects N -> bridged_prev (e.g., 3-28 -> 4-11), not
+    consecutive (4-4 -> 4-11). The matched-unit check must use the same
+    bridged anchor or the comparison will trivially diverge."""
     sh = summary_history_df.copy()
     sh["scrape_date"] = pd.to_datetime(sh["scrape_date"])
 
-    for prev_wk, curr_wk in pairs:
-        prev_df = _load_week(prev_wk)
-        curr_df = _load_week(curr_wk)
-        if prev_df.empty or curr_df.empty:
-            continue
+    GAP_THRESHOLD = 0.10
 
-        # Bucket-level chain-link WoW per (reit, market)
+    def _has_gap(reit, prev_d, curr_d):
+        """Check community coverage gap for a pair."""
+        prev_df = _load_week(prev_d)
+        curr_df = _load_week(curr_d)
+        if prev_df.empty or curr_df.empty:
+            return True
+        p_comms = set(prev_df[prev_df["reit"] == reit]["community"].dropna())
+        c_comms = set(curr_df[curr_df["reit"] == reit]["community"].dropna())
+        if len(p_comms) < 30 or len(c_comms) < 30:
+            return True
+        miss = len(p_comms - c_comms) / max(len(p_comms), 1)
+        new = len(c_comms - p_comms) / max(len(c_comms), 1)
+        return miss >= GAP_THRESHOLD or new >= GAP_THRESHOLD
+
+    def _find_bridged_prev(reit, curr_wk):
+        """Walk backwards to find the most recent non-gapped prior week
+        for this REIT — same logic as compute_history."""
+        idx = weeks.index(curr_wk)
+        for j in range(idx - 1, -1, -1):
+            cand = weeks[j]
+            if not _has_gap(reit, cand, curr_wk):
+                return cand
+        return None
+
+    pairs = list(zip(weeks[:-1], weeks[1:]))
+
+    for prev_wk, curr_wk in pairs:
+        # Bucket-level chain-link WoW per (reit, market) for THIS curr_wk
         sub = sh[sh["scrape_date"] == pd.Timestamp(curr_wk)]
         sub = sub.dropna(subset=["sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev",
                                   "sp_count"])
         sub = sub[sub["sp_count"] > 0]
+        if sub.empty:
+            continue
         sub["_w_curr"] = sub["sp_avg_eff_rent_curr"] * sub["sp_count"]
         sub["_w_prev"] = sub["sp_avg_eff_rent_prev"] * sub["sp_count"]
         bucket = sub.groupby(["reit", "macro_market"]).agg(
@@ -212,27 +243,56 @@ def check_bucket_vs_matched(weeks, summary_history_df, fnd: Findings):
             n=("sp_count", "sum")).reset_index()
         bucket["bucket_wow"] = (bucket["wsc"] / bucket["wsp"] - 1) * 100
 
-        # Matched-unit WoW
-        merged = curr_df[["reit", "unit_id", "macro_market", "effective_monthly_rent"]].rename(
-            columns={"effective_monthly_rent": "ner_c"}).merge(
-            prev_df[["reit", "unit_id", "effective_monthly_rent"]].rename(
-                columns={"effective_monthly_rent": "ner_p"}),
-            on=["reit", "unit_id"], how="inner")
-        merged = merged.dropna(subset=["ner_p", "ner_c"])
-        m_agg = merged.groupby(["reit", "macro_market"]).agg(
-            n=("ner_p", "count"),
-            ner_p=("ner_p", "mean"),
-            ner_c=("ner_c", "mean")).reset_index()
-        m_agg["matched_wow"] = (m_agg["ner_c"] / m_agg["ner_p"] - 1) * 100
+        # For each REIT in this week, identify the actual prev anchor
+        # (bridged or consecutive) and compute matched-unit WoW against it.
+        curr_df = _load_week(curr_wk)
+        if curr_df.empty:
+            continue
 
+        m_rows = []
+        for reit in bucket["reit"].unique():
+            anchor = _find_bridged_prev(reit, curr_wk)
+            if anchor is None:
+                continue
+            prev_df_anchor = _load_week(anchor)
+            if prev_df_anchor.empty:
+                continue
+            merged = curr_df[curr_df["reit"] == reit][
+                ["unit_id", "macro_market", "effective_monthly_rent"]].rename(
+                columns={"effective_monthly_rent": "ner_c"}).merge(
+                prev_df_anchor[prev_df_anchor["reit"] == reit][
+                    ["unit_id", "effective_monthly_rent"]].rename(
+                    columns={"effective_monthly_rent": "ner_p"}),
+                on="unit_id", how="inner")
+            merged = merged.dropna(subset=["ner_p", "ner_c"])
+            if merged.empty:
+                continue
+            for mkt, g in merged.groupby("macro_market"):
+                if len(g) == 0:
+                    continue
+                m_rows.append({
+                    "reit": reit,
+                    "macro_market": mkt,
+                    "n": len(g),
+                    "ner_p": g["ner_p"].mean(),
+                    "ner_c": g["ner_c"].mean(),
+                    "matched_wow": (g["ner_c"].mean() / g["ner_p"].mean() - 1) * 100
+                                    if g["ner_p"].mean() else None,
+                    "anchor": anchor.isoformat(),
+                })
+
+        if not m_rows:
+            continue
+        m_agg = pd.DataFrame(m_rows)
         m = bucket.merge(m_agg, on=["reit", "macro_market"], suffixes=("_b", "_m"))
-        m = m[m["n_b"] >= 30]  # only check meaningful pools
+        m = m[m["n_b"] >= 30]
         m["abs_diff_bps"] = (m["bucket_wow"] - m["matched_wow"]).abs() * 100
         bad = m[m["abs_diff_bps"] > 50]
         for _, r in bad.iterrows():
             sev = "FAIL" if r["abs_diff_bps"] > 200 else "WARN"
+            anchor_note = f" [anchor={r['anchor']}]" if r["anchor"] != prev_wk.isoformat() else ""
             fnd.add(sev, "bucket_vs_matched_divergence",
-                    f"{r['reit']} {r['macro_market']} {prev_wk} -> {curr_wk}: "
+                    f"{r['reit']} {r['macro_market']} {prev_wk} -> {curr_wk}{anchor_note}: "
                     f"bucket NER {r['bucket_wow']:+.2f}% vs matched {r['matched_wow']:+.2f}% "
                     f"(Δ={r['abs_diff_bps']:.0f} bps, n={int(r['n_b'])})",
                     pair=f"{prev_wk}/{curr_wk}", reit=r["reit"], market=r["macro_market"])
