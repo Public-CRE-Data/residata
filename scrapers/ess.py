@@ -312,11 +312,22 @@ def _scrape_community(page, comm: dict) -> list[dict]:
             pass
 
     if not comm_name:
-        # Try the H1 page title element (CSS module)
+        # Try the H1 page title element (CSS module).
+        # The new SPA's community-header-title block has the property name
+        # PLUS a subheading "Floor Plans & Pricing" separated by newline.
+        # Take only the first non-empty line.
         try:
             h1 = page.query_selector('[class*="community-header-title"]')
             if h1:
-                comm_name = (h1.inner_text() or "").strip() or None
+                txt = (h1.inner_text() or "").strip()
+                if txt:
+                    first_line = txt.splitlines()[0].strip()
+                    # Defensive: strip the floor-plans suffix in case it's on
+                    # the same line on some properties.
+                    first_line = re.sub(
+                        r"\s*Floor Plans?\s*&\s*Pricing\s*$", "",
+                        first_line, flags=re.I).strip()
+                    comm_name = first_line or None
         except Exception:
             pass
 
