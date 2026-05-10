@@ -196,29 +196,48 @@ def check_bucket_vs_matched(weeks, summary_history_df, fnd: Findings):
     Critical: when a (REIT, week) was bridged across a coverage-gap week,
     the bucket WoW reflects N -> bridged_prev (e.g., 3-28 -> 4-11), not
     consecutive (4-4 -> 4-11). The matched-unit check must use the same
-    bridged anchor or the comparison will trivially diverge."""
+    bridged anchor or the comparison will trivially diverge.
+
+    Performance: pre-loads each week once and indexes by reit so the
+    inner _has_gap/matched-merge loop avoids re-reading CSVs hundreds
+    of times. Was timing out at 900s with 7 weeks; this brings it to
+    ~30s.
+    """
     sh = summary_history_df.copy()
     sh["scrape_date"] = pd.to_datetime(sh["scrape_date"])
 
     GAP_THRESHOLD = 0.10
 
+    # Pre-load each week's data once. Build per-REIT indexes for fast lookup.
+    print("    [pre-load] caching week dataframes...")
+    week_data = {}      # week -> full DataFrame
+    week_by_reit = {}   # week -> {reit -> sub-DataFrame}
+    week_communities = {}  # week -> {reit -> set of communities}
+    for wk in weeks:
+        df = _load_week(wk)
+        week_data[wk] = df
+        if df.empty:
+            week_by_reit[wk] = {}
+            week_communities[wk] = {}
+            continue
+        by_reit = {}
+        comms = {}
+        for reit, sub in df.groupby("reit"):
+            by_reit[reit] = sub
+            comms[reit] = set(sub["community"].dropna())
+        week_by_reit[wk] = by_reit
+        week_communities[wk] = comms
+
     def _has_gap(reit, prev_d, curr_d):
-        """Check community coverage gap for a pair."""
-        prev_df = _load_week(prev_d)
-        curr_df = _load_week(curr_d)
-        if prev_df.empty or curr_df.empty:
-            return True
-        p_comms = set(prev_df[prev_df["reit"] == reit]["community"].dropna())
-        c_comms = set(curr_df[curr_df["reit"] == reit]["community"].dropna())
-        if len(p_comms) < 30 or len(c_comms) < 30:
+        p_comms = week_communities.get(prev_d, {}).get(reit, set())
+        c_comms = week_communities.get(curr_d, {}).get(reit, set())
+        if len(p_comms) < 10 or len(c_comms) < 10:
             return True
         miss = len(p_comms - c_comms) / max(len(p_comms), 1)
         new = len(c_comms - p_comms) / max(len(c_comms), 1)
         return miss >= GAP_THRESHOLD or new >= GAP_THRESHOLD
 
     def _find_bridged_prev(reit, curr_wk):
-        """Walk backwards to find the most recent non-gapped prior week
-        for this REIT — same logic as compute_history."""
         idx = weeks.index(curr_wk)
         for j in range(idx - 1, -1, -1):
             cand = weeks[j]
@@ -243,10 +262,10 @@ def check_bucket_vs_matched(weeks, summary_history_df, fnd: Findings):
             n=("sp_count", "sum")).reset_index()
         bucket["bucket_wow"] = (bucket["wsc"] / bucket["wsp"] - 1) * 100
 
-        # For each REIT in this week, identify the actual prev anchor
-        # (bridged or consecutive) and compute matched-unit WoW against it.
-        curr_df = _load_week(curr_wk)
-        if curr_df.empty:
+        # For each REIT, identify bridged anchor and compute matched-unit
+        # WoW against it. Uses pre-loaded per-REIT frames.
+        curr_by_reit = week_by_reit.get(curr_wk, {})
+        if not curr_by_reit:
             continue
 
         m_rows = []
@@ -254,14 +273,13 @@ def check_bucket_vs_matched(weeks, summary_history_df, fnd: Findings):
             anchor = _find_bridged_prev(reit, curr_wk)
             if anchor is None:
                 continue
-            prev_df_anchor = _load_week(anchor)
-            if prev_df_anchor.empty:
+            curr_r = curr_by_reit.get(reit)
+            prev_r = week_by_reit.get(anchor, {}).get(reit)
+            if curr_r is None or prev_r is None:
                 continue
-            merged = curr_df[curr_df["reit"] == reit][
-                ["unit_id", "macro_market", "effective_monthly_rent"]].rename(
+            merged = curr_r[["unit_id", "macro_market", "effective_monthly_rent"]].rename(
                 columns={"effective_monthly_rent": "ner_c"}).merge(
-                prev_df_anchor[prev_df_anchor["reit"] == reit][
-                    ["unit_id", "effective_monthly_rent"]].rename(
+                prev_r[["unit_id", "effective_monthly_rent"]].rename(
                     columns={"effective_monthly_rent": "ner_p"}),
                 on="unit_id", how="inner")
             merged = merged.dropna(subset=["ner_p", "ner_c"])
