@@ -266,8 +266,11 @@ def _scrape_community(page, comm: dict) -> list[dict]:
 
     try:
         page.goto(fp_url, wait_until="domcontentloaded", timeout=45_000)
-        # Wait for floor-plan cards to appear
-        page.wait_for_selector(".floor-plan-card", timeout=20_000)
+        # ESS migrated to CSS modules — class names are now hashed like
+        # "PropertyFloor-module-scss-module__9ZWfCa__floor-plan-card"
+        # so we use [class*="floor-plan-card"] to match anywhere in the
+        # class string. Same applies to the inner element selectors.
+        page.wait_for_selector('[class*="floor-plan-card"]', timeout=30_000)
     except PWTimeout:
         logger.warning(f"  Timeout waiting for floor-plan-card on {fp_url}")
         return []
@@ -287,17 +290,17 @@ def _scrape_community(page, comm: dict) -> list[dict]:
     if not comm_name:
         comm_name = comm_slug.replace("-", " ").title()
 
-    # Community-level concession banner
-    # ESS displays offers in .property-offer-cta / .property-offer-content
-    # elements (NOT inside individual floor-plan cards, which are always empty).
+    # Community-level concession banner. With CSS modules, class names
+    # are hashed — use [class*=] selectors throughout.
     comm_concession = None
     try:
         # Primary: property-offer-cta headline + details (the actual offer banner)
         for sel in [
-            ".property-offer-content__details",       # full offer details text
-            ".property-offer-cta__link",              # offer headline link
-            ".property-offer-content__headline",      # offer headline (alt)
-            ".property-offer-cta__headline",          # headline wrapper
+            '[class*="property-offer-content__details"]',
+            '[class*="property-offer-cta__link"]',
+            '[class*="property-offer-content__headline"]',
+            '[class*="property-offer-cta__headline"]',
+            '[class*="property-offer-cta__main-container"]',
         ]:
             el = page.query_selector(sel)
             if el:
@@ -306,12 +309,12 @@ def _scrape_community(page, comm: dict) -> list[dict]:
                 if comm_concession:
                     break
 
-        # Fallback: legacy selectors
+        # Fallback: any class containing "special-offer" or "promo-banner"
         if not comm_concession:
             for sel in [
-                ".floor-plan-card__special-offer",
-                "[class*='special-offer']",
-                "[class*='promo-banner']",
+                '[class*="special-offer"]',
+                '[class*="promo-banner"]',
+                '[class*="grouping-offers"]',
             ]:
                 el = page.query_selector(sel)
                 if el:
@@ -322,7 +325,7 @@ def _scrape_community(page, comm: dict) -> list[dict]:
 
         # Fallback: scan the header text for concession keywords
         if not comm_concession:
-            header = page.query_selector(".community-header")
+            header = page.query_selector('[class*="community-header"]')
             if header:
                 header_txt = (header.inner_text() or "").strip()
                 for line in header_txt.split("\n"):
@@ -368,8 +371,23 @@ def _scrape_community(page, comm: dict) -> list[dict]:
     except Exception:
         pass
 
-    # Extract floor-plan cards
-    cards = page.query_selector_all(".floor-plan-card")
+    # Extract floor-plan cards. CSS-module classes mean we must match
+    # via attribute-contains and prefer the OUTER card wrapper to avoid
+    # double-counting. The wrapper class is `*__floor-plan-card-wrapper`
+    # — falls back to `*__floor-plan-card` if wrapper isn't present.
+    cards = page.query_selector_all('[class*="floor-plan-card-wrapper"]')
+    if not cards:
+        # Some properties render a flat card without the wrapper. Match
+        # `floor-plan-card` BUT exclude inner sub-elements (those have
+        # `__content` / `__image` / `__special-offer` suffixes).
+        all_cards = page.query_selector_all('[class*="floor-plan-card"]')
+        cards = []
+        for el in all_cards:
+            cls = el.get_attribute("class") or ""
+            # Top-level card — class contains "floor-plan-card" but NOT
+            # "floor-plan-card__" (those are inner blocks).
+            if "floor-plan-card__" not in cls and "floor-plan-card-wrapper" not in cls:
+                cards.append(el)
     rows: list[dict] = []
 
     for card in cards:
@@ -377,11 +395,14 @@ def _scrape_community(page, comm: dict) -> list[dict]:
             get_txt = lambda sel: (card.query_selector(sel) or None) and \
                                   card.query_selector(sel).inner_text().strip()
 
-            plan_name    = get_txt(".floor-plan-card__content__layout")
-            price_text   = get_txt(".floor-plan-card__content__price")
-            size_text    = get_txt(".floor-plan-card__content__size")
-            avail_text   = get_txt(".floor-plan-card__content__availability")
-            offer_text   = get_txt(".floor-plan-card__special-offer")
+            # CSS-module aware: class*= matches even when class names are
+            # prefixed by hashes like "PropertyFloor-module-scss-module__9ZWfCa__"
+            plan_name    = get_txt('[class*="floor-plan-card__content__layout"]')
+            price_text   = get_txt('[class*="floor-plan-card__content__price"]')
+            size_text    = get_txt('[class*="floor-plan-card__content__size"]')
+            avail_text   = get_txt('[class*="floor-plan-card__content__availability"]')
+            offer_text   = get_txt('[class*="floor-plan-card__special-offer"]') or \
+                           get_txt('[class*="floor-plan-card__offer"]')
 
             rent         = _parse_rent(price_text)
             if rent is None:
