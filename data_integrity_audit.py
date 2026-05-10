@@ -224,7 +224,9 @@ def check_bucket_vs_matched(weeks, summary_history_df, fnd: Findings):
         comms = {}
         for reit, sub in df.groupby("reit"):
             by_reit[reit] = sub
-            comms[reit] = set(sub["community"].dropna())
+            # Case-insensitive: scraper display-string capitalization changes
+            # are NOT real coverage gaps.
+            comms[reit] = set(sub["community"].dropna().astype(str).str.lower())
         week_by_reit[wk] = by_reit
         week_communities[wk] = comms
 
@@ -515,8 +517,10 @@ def check_community_coverage_gaps(weeks, fnd: Findings):
         if prev_df.empty or curr_df.empty:
             continue
         for reit in sorted(set(prev_df["reit"].unique()) | set(curr_df["reit"].unique())):
-            p_comms = set(prev_df[prev_df["reit"] == reit]["community"].dropna())
-            c_comms = set(curr_df[curr_df["reit"] == reit]["community"].dropna())
+            # Case-insensitive: scraper display-string changes are NOT
+            # real coverage gaps (unit_id intersection still matches).
+            p_comms = set(prev_df[prev_df["reit"] == reit]["community"].dropna().astype(str).str.lower())
+            c_comms = set(curr_df[curr_df["reit"] == reit]["community"].dropna().astype(str).str.lower())
             if len(p_comms) < 50:
                 continue
             missing_in_curr = p_comms - c_comms

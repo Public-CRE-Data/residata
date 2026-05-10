@@ -171,10 +171,15 @@ def apply_fixes(df: pd.DataFrame) -> pd.DataFrame:
     for i in range(1, len(weeks)):
         prev_wk, curr_wk = weeks[i - 1], weeks[i]
         for reit in df["reit"].unique():
-            p_comms = set(df[(df["reit"] == reit) & (df["scrape_date"] == prev_wk)]
-                          ["community"].dropna())
-            c_comms = set(df[(df["reit"] == reit) & (df["scrape_date"] == curr_wk)]
-                          ["community"].dropna())
+            # Case-insensitive community matching: scraper changes that
+            # capitalize stop-words or convert ALLCAPS to TitleCase don't
+            # actually mean coverage gaps — same physical properties,
+            # different display strings. Normalize to lowercase for the
+            # set comparison.
+            p_raw = df[(df["reit"] == reit) & (df["scrape_date"] == prev_wk)]["community"].dropna()
+            c_raw = df[(df["reit"] == reit) & (df["scrape_date"] == curr_wk)]["community"].dropna()
+            p_comms = set(p_raw.astype(str).str.lower())
+            c_comms = set(c_raw.astype(str).str.lower())
             # Adaptive minimum (SFR REITs have small community counts):
             if len(p_comms) < 10 or len(c_comms) < 10:
                 continue
@@ -305,17 +310,23 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
         (AMH/INVH), 'community' is the market name (e.g., 'Atlanta') —
         they have only 20-40. So we use an adaptive minimum: at least
         80% of the REIT's typical community count must be present, with
-        an absolute floor of 10."""
+        an absolute floor of 10.
+
+        Comparison is case-insensitive — scraper-side display-string
+        changes (capitalization of stop-words, ALLCAPS → TitleCase) are
+        NOT real coverage gaps."""
         p_unit_n = len(panel_df[(panel_df["reit"] == reit)
                                  & (panel_df["scrape_date"] == prev_d)])
         c_unit_n = len(panel_df[(panel_df["reit"] == reit)
                                  & (panel_df["scrape_date"] == curr_d)])
         if p_unit_n < 100 or c_unit_n < 100:
             return True   # not enough units to be confident
-        p_comms = set(panel_df[(panel_df["reit"] == reit)
-                                & (panel_df["scrape_date"] == prev_d)]["community"].dropna())
-        c_comms = set(panel_df[(panel_df["reit"] == reit)
-                                & (panel_df["scrape_date"] == curr_d)]["community"].dropna())
+        p_raw = panel_df[(panel_df["reit"] == reit)
+                          & (panel_df["scrape_date"] == prev_d)]["community"].dropna()
+        c_raw = panel_df[(panel_df["reit"] == reit)
+                          & (panel_df["scrape_date"] == curr_d)]["community"].dropna()
+        p_comms = set(p_raw.astype(str).str.lower())
+        c_comms = set(c_raw.astype(str).str.lower())
         if len(p_comms) < 10 or len(c_comms) < 10:
             return True
         miss_pct = len(p_comms - c_comms) / max(len(p_comms), 1)

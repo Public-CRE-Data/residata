@@ -286,9 +286,53 @@ def _scrape_community(page, comm: dict) -> list[dict]:
         comm_name = None
         prop_id   = None
 
-    # Fallback name from slug
+    # Fallback 1: try other DOM sources (Next.js SPA exposes name in
+    # JSON-LD or page header). Without this, the slug fallback would
+    # title-case every word, capitalizing "at"/"of"/"the" — producing
+    # community names that fail to match prior weeks ('Agora at South
+    # Main' vs 'Agora At South Main').
     if not comm_name:
-        comm_name = comm_slug.replace("-", " ").title()
+        try:
+            # JSON-LD usually has the property name
+            ld_name = page.evaluate("""
+                () => {
+                    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+                    for (const s of scripts) {
+                        try {
+                            const d = JSON.parse(s.textContent);
+                            if (d && d.name) return d.name;
+                        } catch(e) {}
+                    }
+                    return null;
+                }
+            """)
+            if ld_name:
+                comm_name = ld_name
+        except Exception:
+            pass
+
+    if not comm_name:
+        # Try the H1 page title element (CSS module)
+        try:
+            h1 = page.query_selector('[class*="community-header-title"]')
+            if h1:
+                comm_name = (h1.inner_text() or "").strip() or None
+        except Exception:
+            pass
+
+    # Final fallback: slug-derived name with stop-words kept lowercase
+    # to match prior-week capitalization (which came from the property
+    # display name, not a title-cased slug).
+    if not comm_name:
+        STOPWORDS = {"at", "of", "the", "on", "in", "by", "and", "to"}
+        words = comm_slug.replace("-", " ").split()
+        titled = []
+        for i, w in enumerate(words):
+            if i > 0 and w.lower() in STOPWORDS:
+                titled.append(w.lower())
+            else:
+                titled.append(w.capitalize())
+        comm_name = " ".join(titled)
 
     # Community-level concession banner. With CSS modules, class names
     # are hashed — use [class*=] selectors throughout.
