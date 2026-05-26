@@ -229,7 +229,7 @@ MACRO_MAP = {
 
     # Washington, DC
     "Washington DC": "Washington, DC", "Washington, DC": "Washington, DC",
-    "Arlington VA": "Washington, DC", "Arlington": "Washington, DC",
+    "Arlington VA": "Washington, DC", "Arlington MD": "Washington, DC",
     "Alexandria VA": "Washington, DC", "Alexandria": "Washington, DC",
     "Bethesda MD": "Washington, DC", "Bethesda": "Washington, DC",
     "Silver Spring MD": "Washington, DC", "Silver Spring": "Washington, DC",
@@ -252,7 +252,7 @@ MACRO_MAP = {
     "Plano": "Dallas/Fort Worth", "Irving": "Dallas/Fort Worth",
     "Frisco": "Dallas/Fort Worth", "McKinney": "Dallas/Fort Worth",
     "Garland": "Dallas/Fort Worth", "Mesquite": "Dallas/Fort Worth",
-    "Arlington TX": "Dallas/Fort Worth", "Arlington": "Dallas/Fort Worth",
+    "Arlington TX": "Dallas/Fort Worth",
     "Carrollton": "Dallas/Fort Worth", "Richardson": "Dallas/Fort Worth",
     "Grand Prairie": "Dallas/Fort Worth", "Lewisville": "Dallas/Fort Worth",
     "Denton": "Dallas/Fort Worth", "Flower Mound": "Dallas/Fort Worth",
@@ -1221,13 +1221,29 @@ def build_panel(file_list):
 # STEP 4: MACRO-MARKET MAPPING
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Cities that exist in multiple macro-markets — must be matched WITH state.
+# Never resolve these from a bare city name (the metro is ambiguous).
+_AMBIGUOUS_CITIES = {
+    "Arlington",   # Arlington VA (DC) vs Arlington TX (DFW)
+    "Richmond",    # Richmond VA vs Richmond CA (East Bay)
+    "Columbus",    # Columbus OH vs Columbus GA
+    "Aurora",      # Aurora CO (Denver) vs Aurora IL (Chicago)
+    "Glendale",    # Glendale CA (LA) vs Glendale AZ (Phoenix)
+    "Pasadena",    # Pasadena CA (LA) vs Pasadena TX (Houston)
+    "Franklin",    # Franklin TN (Nashville) vs others
+    "Springfield", # multiple
+    "Riverside",   # Riverside CA vs others
+    "Salem",       # multiple
+}
+
+
 def _resolve_macro_market(market_value):
     """
     Resolve a market string to its macro-market using a multi-step fallback:
       1. Direct lookup in MACRO_MAP
       2. Direct lookup in _CITY_ST_MAP (handles "City, ST" format)
-      3. Strip ", XX" state suffix and retry MACRO_MAP  (e.g. "Addison, TX" → "Addison")
-      4. Strip ", XX" and retry with "City ST" format   (e.g. "Addison TX")
+      3. Strip ", XX" state suffix and retry MACRO_MAP as "City ST" (state-aware)
+      4. Bare-city fallback — ONLY for non-ambiguous cities (see _AMBIGUOUS_CITIES)
       5. Return "Other"
     """
     if not isinstance(market_value, str) or not market_value.strip():
@@ -1243,14 +1259,21 @@ def _resolve_macro_market(market_value):
     if val in _CITY_ST_MAP:
         return _CITY_ST_MAP[val]
 
-    # 3-4. Try stripping state suffix  ("City, ST" → "City" and "City ST")
+    # 3-4. Try stripping state suffix  ("City, ST" → "City ST" then "City")
     m = re.match(r'^(.+),\s*([A-Z]{2})$', val)
     if m:
         city, state = m.group(1).strip(), m.group(2)
         city_st = f"{city} {state}"
+        # State-aware lookup FIRST — this disambiguates cities that exist
+        # in multiple metros (Arlington VA/TX, Richmond CA/VA, etc.).
         if city_st in MACRO_MAP:
             return MACRO_MAP[city_st]
-        if city in MACRO_MAP:
+        # Bare-city fallback ONLY for non-ambiguous cities. Ambiguous
+        # cities (same name in multiple metros) MUST match on state above;
+        # if they reach here the state is unrecognized, so return Other
+        # rather than guessing the wrong metro (which silently corrupts
+        # same-property aggregates — see Arlington VA→DFW bug, May 2026).
+        if city not in _AMBIGUOUS_CITIES and city in MACRO_MAP:
             return MACRO_MAP[city]
 
     return "Other"
