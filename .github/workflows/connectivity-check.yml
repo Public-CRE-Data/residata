@@ -1,0 +1,80 @@
+name: Connectivity Diagnostic
+
+# Answers one question: can a GitHub-hosted runner actually reach the REIT
+# sites, or do they block/tarpit datacenter IPs? Every scheduled run of
+# weekly-scrape.yml has hung with an empty log, which is consistent with
+# hanging Playwright navigations — but that needs proving, not assuming.
+#
+# Manual trigger only. Runs in ~2 minutes.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Plain HTTP probe (curl)
+        run: |
+          echo "=== curl HEAD, 25s cap, per host ==="
+          for h in \
+            https://www.maac.com \
+            https://www.camdenliving.com \
+            https://www.equityapartments.com \
+            https://www.avaloncommunities.com \
+            https://www.udr.com \
+            https://www.essexapartmenthomes.com \
+            https://www.invitationhomes.com \
+            https://www.amh.com ; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+                     --max-time 25 -L \
+                     -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36' \
+                     "$h" || echo "TIMEOUT/ERR")
+            printf '%-45s %s\n' "$h" "$code"
+          done
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Headless Chromium probe (with hard timeout)
+        run: |
+          python - <<'PY'
+          from playwright.sync_api import sync_playwright
+
+          HOSTS = [
+              "https://www.maac.com",
+              "https://www.camdenliving.com",
+              "https://www.equityapartments.com",
+              "https://www.avaloncommunities.com",
+              "https://www.udr.com",
+              "https://www.essexapartmenthomes.com",
+              "https://www.invitationhomes.com",
+              "https://www.amh.com",
+          ]
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              for url in HOSTS:
+                  page = browser.new_page()
+                  try:
+                      # 30s hard cap — the production scrapers lack this,
+                      # which is why a blocked host hangs the job forever.
+                      resp = page.goto(url, timeout=30_000, wait_until="domcontentloaded")
+                      status = resp.status if resp else "NO_RESPONSE"
+                      title = (page.title() or "")[:60]
+                      print(f"{url:<45} {status}  title={title!r}")
+                  except Exception as e:
+                      print(f"{url:<45} FAILED  {type(e).__name__}: {str(e)[:90]}")
+                  finally:
+                      page.close()
+              browser.close()
+          PY
