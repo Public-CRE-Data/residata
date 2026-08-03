@@ -219,6 +219,12 @@ def _market_from_address(city: str, state: str) -> str:
 # ── Text parsers ───────────────────────────────────────────────────────────────
 
 _DOLLAR_RE       = re.compile(r"\$([\d,]+)")
+# Dollar amount that is *labelled* "base rent" (the label follows the figure):
+#   "$2,815/mo all-in price $2,595/mo base rent"  ->  2,595
+# INVH renders all-in price FIRST, so taking the first "$" in a blob that
+# merely contains the words "base rent" yields the all-in figure instead.
+_BASE_RENT_RE    = re.compile(r"\$([\d,]+)\s*(?:/\s*mo\b)?[\s|]*base\s*(?:rent|price)",
+                              re.IGNORECASE)
 _BEDS_RE         = re.compile(r"(\d+)\s*bed", re.IGNORECASE)
 _BATHS_RE        = re.compile(r"([\d.]+)\s*bath", re.IGNORECASE)
 _SQFT_RE         = re.compile(r"([\d,]+)\s*sqft", re.IGNORECASE)
@@ -320,18 +326,32 @@ def _scrape_property(page, prop: dict) -> Optional[dict]:
     rent = None
     rent_type = "unknown"
 
-    # Scan [class*=price] elements for "base rent" label
+    # Scan [class*=price] elements for the "base rent" figure.
+    #
+    # Two hazards, both of which silently corrupted this field historically:
+    #   1. [class*=price] also matches `property-card__price*` elements — those
+    #      belong to OTHER (nearby/similar) homes shown on the page, not the
+    #      subject property. Matching one attaches a neighbour's rent to this
+    #      listing, which decorrelates rent from the home's own sqft/beds.
+    #   2. The subject block lists all-in price BEFORE base rent, so grabbing
+    #      the first "$" in a blob containing "base rent" returns the all-in
+    #      figure (~8% high) rather than base rent.
+    #
+    # So: skip property cards, and match the figure the "base rent" label is
+    # actually attached to.
     try:
         price_els = page.query_selector_all("[class*=price]")
         for el in price_els:
             try:
+                cls = (el.get_attribute("class") or "").lower()
+                if "property-card" in cls:
+                    continue  # a different home
                 txt = (el.inner_text() or "").strip()
-                if "base rent" in txt.lower() or "base price" in txt.lower():
-                    m = _DOLLAR_RE.search(txt)
-                    if m:
-                        rent = m.group(1).replace(",", "")
-                        rent_type = "base"
-                        break
+                m = _BASE_RENT_RE.search(" ".join(txt.split()))
+                if m:
+                    rent = m.group(1).replace(",", "")
+                    rent_type = "base"
+                    break
             except Exception:
                 continue
     except Exception:
@@ -357,12 +377,20 @@ def _scrape_property(page, prop: dict) -> Optional[dict]:
                 result["available_on"] = str(avail_date)
 
     if not rent:
-        # Fallback: first dollar amount in details bar
+        # Fallback: the details bar. Prefer the labelled "base rent" figure —
+        # the bar reads "$2,815/mo all-in price $2,595/mo base rent", so a bare
+        # first-dollar match returns all-in.
         if details_text:
-            m = _DOLLAR_RE.search(details_text)
+            flat = " ".join(details_text.split())
+            m = _BASE_RENT_RE.search(flat)
             if m:
                 rent = m.group(1).replace(",", "")
-                rent_type = "allin" if "all-in" in details_text.lower() else "listed"
+                rent_type = "base"
+            else:
+                m = _DOLLAR_RE.search(flat)
+                if m:
+                    rent = m.group(1).replace(",", "")
+                    rent_type = "allin" if "all-in" in flat.lower() else "listed"
 
     if not rent:
         logger.debug(f"  No rent found for {slug}")
