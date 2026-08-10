@@ -2233,6 +2233,123 @@ def _build_sp_index_from_history(summary_history_df, sp_df, metric_curr, metric_
     return None, reits
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SMOOTHING OF NEVER-SCRAPED WEEKS
+# ─────────────────────────────────────────────────────────────────────────────
+# Four Saturday-anchored weeks were never scraped (2026-06-27, 07-04, 07-11 and
+# 07-25) because the weekly run did not fire. Listings are a live snapshot, so
+# there is nothing to back-fill from — the data does not exist and never will.
+#
+# Left alone, every time-series chart draws one long straight segment across the
+# hole with no visual cue that five weeks of history are actually one
+# observation. These helpers insert the missing weeks and linearly interpolate.
+#
+# Two deliberate choices:
+#   * The cells hold an Excel FORMULA referencing the bracketing real cells, not
+#     a baked-in number. The derivation stays auditable in the workbook, and if
+#     a real value is ever written over an endpoint the interpolation follows.
+#   * They are filled amber with an explanatory comment, so an interpolated
+#     point can never be read as an observation.
+
+SMOOTHED_FILL = PatternFill("solid", fgColor="FFF2CC")      # amber
+SMOOTHED_FONT = Font(name="Arial", size=10, italic=True, color="8A6D00")
+
+SMOOTHED_NOTE = (
+    "INTERPOLATED — this week was never scraped.\n"
+    "Linear interpolation between the nearest observed weeks above and below. "
+    "Not an observation; do not cite as a data point."
+)
+
+
+def _with_missing_weeks(pivot):
+    """Reindex a date-indexed pivot onto a complete weekly grid.
+
+    Returns (pivot_full, interp_positions) where interp_positions holds the
+    integer row offsets that were absent from the source data.
+    """
+    if pivot is None or len(pivot) == 0:
+        return pivot, set()
+    idx = pd.DatetimeIndex(pivot.index)
+    if len(idx) < 2:
+        return pivot, set()
+    full = pd.date_range(idx.min(), idx.max(), freq="7D")
+    if len(full) <= len(idx):
+        return pivot, set()          # no gaps
+    observed = set(idx)
+    return pivot.reindex(full), {i for i, d in enumerate(full) if d not in observed}
+
+
+def _nearest_observed(pivot, interp_positions, i, col, step):
+    """Nearest row offset from i (walking by `step`) that is observed and numeric."""
+    j = i + step
+    while 0 <= j < len(pivot):
+        if j not in interp_positions and pd.notna(pivot.iloc[j][col]):
+            return j
+        j += step
+    return None
+
+
+def _write_timeseries_rows(ws, header_row, pivot, interp_positions,
+                           number_formats=None, decimals=None):
+    """Write a date-indexed pivot; interpolated weeks get formulas + amber fill.
+
+    Observed weeks are written exactly as before. For an interpolated week the
+    cell receives `=A + (B-A)*k/n` against the bracketing observed cells, so the
+    workbook shows how the number was derived.
+    """
+    from openpyxl.comments import Comment
+
+    for i, (dt, row_series) in enumerate(pivot.iterrows()):
+        r = header_row + 1 + i
+        is_interp = i in interp_positions
+
+        vals = [str(dt)[:10]]
+        for c in pivot.columns:
+            v = row_series.get(c)
+            if is_interp or pd.isna(v):
+                vals.append(None)
+            else:
+                vals.append(round(float(v), decimals) if decimals is not None
+                            else float(v))
+        write_data_row(ws, r, vals, alt=(i % 2 == 1),
+                       number_formats=number_formats)
+
+        if not is_interp:
+            continue
+
+        # Interpolated row: replace each blank with a formula where possible.
+        for j, c in enumerate(pivot.columns):
+            col = 2 + j
+            a = _nearest_observed(pivot, interp_positions, i, c, -1)
+            b = _nearest_observed(pivot, interp_positions, i, c, +1)
+            cell = ws.cell(row=r, column=col)
+            if a is not None and b is not None:
+                L = get_column_letter(col)
+                ra, rb = header_row + 1 + a, header_row + 1 + b
+                cell.value = f"={L}{ra}+({L}{rb}-{L}{ra})*{i - a}/{b - a}"
+                cell.comment = Comment(SMOOTHED_NOTE, "build_excel.py")
+            cell.fill = SMOOTHED_FILL
+            cell.font = SMOOTHED_FONT
+
+        # Flag the date cell too, so the row reads as interpolated at a glance.
+        dcell = ws.cell(row=r, column=1)
+        dcell.fill = SMOOTHED_FILL
+        dcell.font = SMOOTHED_FONT
+        dcell.value = f"{str(dt)[:10]} *"
+        dcell.comment = Comment(SMOOTHED_NOTE, "build_excel.py")
+
+
+def _smoothing_legend(ws, row, legend_font):
+    """One-line key explaining the amber shading, written under a block."""
+    c = ws.cell(row=row, column=1,
+                value="* Amber = interpolated (week never scraped). "
+                      "Cells contain formulas referencing the adjacent observed "
+                      "weeks, not observed data.")
+    c.font = legend_font
+    c.fill = SMOOTHED_FILL
+    return row + 1
+
+
 def _write_index_section(ws, start_row, title, calc_desc, pivot_index, chart_title, legend_font):
     """
     Write an index table + line chart to the worksheet. Returns the row after the chart.
@@ -2248,6 +2365,10 @@ def _write_index_section(ws, start_row, title, calc_desc, pivot_index, chart_tit
             name="Arial", italic=True, color="888888", size=10)
         return start_row + 2
 
+    # Insert never-scraped weeks so the chart's x-axis is evenly spaced and the
+    # gap is visible rather than hidden inside one long straight segment.
+    pivot_index, interp_pos = _with_missing_weeks(pivot_index)
+
     idx_hdr = ["Date"] + list(pivot_index.columns)
     write_header_row(ws, start_row, idx_hdr)
     for col_idx in range(2, len(idx_hdr) + 1):
@@ -2255,15 +2376,11 @@ def _write_index_section(ws, start_row, title, calc_desc, pivot_index, chart_tit
             "Index = (this period value / base period value) x 100. "
             "100 = no change from base. Computed on same-property pool only.", "build_excel.py")
 
-    for i, (dt, row_series) in enumerate(pivot_index.iterrows()):
-        r = start_row + 1 + i
-        row_vals = [str(dt)[:10]] + [
-            float(row_series[c]) if pd.notna(row_series.get(c)) else None
-            for c in pivot_index.columns
-        ]
-        write_data_row(ws, r, row_vals, alt=(i % 2 == 1))
+    _write_timeseries_rows(ws, start_row, pivot_index, interp_pos)
 
     n_idx_rows = len(pivot_index)
+    if interp_pos:
+        _smoothing_legend(ws, start_row + n_idx_rows + 1, legend_font)
 
     if n_idx_rows >= 2 and len(pivot_index.columns) > 0:
         line_chart = LineChart()
@@ -2498,16 +2615,14 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
         ws.cell(row=rent_start, column=col_idx).comment = Comment(
             "Avg asking rent ($) for this REIT's same-property pool on this date.", "build_excel.py")
 
-    for i, (dt, row_series) in enumerate(pivot_rent.iterrows()):
-        r = rent_start + 1 + i
-        row_vals = [str(dt)[:10]] + [
-            round(float(row_series[reit]), 0) if pd.notna(row_series.get(reit)) else None
-            for reit in pivot_rent.columns
-        ]
-        rent_fmts = [None] + [NUM_CURRENCY] * len(reits)
-        write_data_row(ws, r, row_vals, alt=(i % 2 == 1), number_formats=rent_fmts)
+    pivot_rent, rent_interp = _with_missing_weeks(pivot_rent)
+    rent_fmts = [None] + [NUM_CURRENCY] * len(pivot_rent.columns)
+    _write_timeseries_rows(ws, rent_start, pivot_rent, rent_interp,
+                           number_formats=rent_fmts, decimals=0)
 
     n_rent_rows = len(pivot_rent)
+    if rent_interp:
+        _smoothing_legend(ws, rent_start + n_rent_rows + 1, legend_font)
 
     # ── Same-Property Avg NER by REIT (raw $) ─────────────────────────────
     ner_start = rent_start + n_rent_rows + 3
@@ -2584,16 +2699,14 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
             ws.cell(row=ner_start, column=col_idx).comment = Comment(
                 "Count-weighted avg NER ($) for matched same-property units on this date.", "build_excel.py")
 
-        for i, (dt, row_series) in enumerate(pivot_ner.iterrows()):
-            r = ner_start + 1 + i
-            row_vals = [str(dt)[:10]] + [
-                round(float(row_series[c]), 0) if pd.notna(row_series.get(c)) else None
-                for c in pivot_ner.columns
-            ]
-            ner_fmts = [None] + [NUM_CURRENCY] * len(pivot_ner.columns)
-            write_data_row(ws, r, row_vals, alt=(i % 2 == 1), number_formats=ner_fmts)
+        pivot_ner, ner_interp = _with_missing_weeks(pivot_ner)
+        ner_fmts = [None] + [NUM_CURRENCY] * len(pivot_ner.columns)
+        _write_timeseries_rows(ws, ner_start, pivot_ner, ner_interp,
+                               number_formats=ner_fmts, decimals=0)
 
         n_ner_rows = len(pivot_ner)
+        if ner_interp:
+            _smoothing_legend(ws, ner_start + n_ner_rows + 1, legend_font)
     else:
         ws.cell(row=ner_start, column=1,
                 value="No NER data available.").font = Font(name="Arial", italic=True, color="888888", size=10)
