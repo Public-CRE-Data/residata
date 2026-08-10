@@ -676,22 +676,25 @@ def extract_units(
             if rent is None:
                 continue
 
+            # beds/sqft MUST stay ints here. unit_id is built from them, so
+            # emitting 1.0/695.0 instead of 1/695 changes every id and breaks
+            # same-property matching against every prior week.
             beds = baths = sqft = None
             st = block.find(class_="pac-card__stats")
             if st:
                 for sp in st.find_all("span", recursive=False):
                     t = " ".join(sp.get_text(" ", strip=True).split())
                     if re.search(r"\bbeds?\b", t, re.I):
-                        m = re.search(r"([\d.]+)", t)
-                        beds = parse_float(m.group(1)) if m else None
-                        if beds is None and re.search(r"studio", t, re.I):
-                            beds = 0.0
+                        m = re.search(r"(\d+)", t)
+                        beds = int(m.group(1)) if m else None
+                    elif re.search(r"studio", t, re.I):
+                        beds = 0
                     elif re.search(r"\bbaths?\b", t, re.I):
-                        m = re.search(r"([\d.]+)", t)
-                        baths = parse_float(m.group(1)) if m else None
+                        m = re.search(r"(\d+(?:\.\d+)?)", t)
+                        baths = float(m.group(1)) if m else None
                     elif re.search(r"sq\.?\s*ft", t, re.I):
                         m = re.search(r"([\d,]+)", t)
-                        sqft = parse_float(m.group(1).replace(",", "")) if m else None
+                        sqft = int(m.group(1).replace(",", "")) if m else None
 
             # Not exposed on this card layout. Must be assigned explicitly:
             # the shared tail below reads them, so leaving them unset would
