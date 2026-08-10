@@ -25,7 +25,7 @@ import sys
 import csv
 import logging
 import subprocess
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -215,7 +215,12 @@ def rebuild_summary_history_from_scratch():
             cwd=str(BASE_DIR),
             capture_output=True,
             text=True,
-            timeout=900,
+            # Cost grows with the length of history (every consecutive-week
+            # pair is recomputed from the full raw archive). 900s was enough
+            # at ~12 weeks and started timing out at 16, which silently left
+            # summary_history stale -- the workbook then rebuilds on the
+            # PRIOR week's data and the run still reports success.
+            timeout=7200,
         )
         # Surface the BRIDGE / GAP / FIX lines explicitly, suppress noise
         for line in result.stdout.splitlines():
@@ -228,6 +233,38 @@ def rebuild_summary_history_from_scratch():
                 logger.error(f"  stderr: {result.stderr.strip()[:500]}")
     except Exception as e:
         logger.error(f"  rebuild_summary_history failed: {type(e).__name__}: {e}")
+        raise RebuildFailed(str(e)) from e
+
+    # A rebuild that "succeeds" but does not contain the week we just scraped
+    # is the same silent failure in a different costume: downstream steps
+    # would happily rebuild the workbook on the PRIOR week and report success.
+    _assert_history_current()
+
+
+class RebuildFailed(RuntimeError):
+    """summary_history could not be regenerated — downstream output is stale."""
+
+
+def _assert_history_current():
+    """Verify the just-scraped week actually made it into summary_history."""
+    import csv as _csv
+    hist = BASE_DIR / "data" / "summary" / "summary_history.csv"
+    if not hist.exists():
+        raise RebuildFailed("summary_history.csv missing after rebuild")
+
+    d = date.fromisoformat(today)
+    anchor = (d - timedelta(days=(d.weekday() - 5) % 7)).isoformat()
+
+    with open(hist, newline="", encoding="utf-8") as fh:
+        weeks = {row["scrape_date"] for row in _csv.DictReader(fh)}
+
+    if anchor not in weeks:
+        raise RebuildFailed(
+            f"week {anchor} is absent from summary_history after rebuild "
+            f"(latest present: {max(weeks) if weeks else 'none'}). "
+            f"Downstream workbooks would be built on stale data."
+        )
+    logger.info(f"  [check] week {anchor} present in summary_history — OK")
 
 
 def rebuild_excel():
@@ -323,7 +360,10 @@ def run_integrity_audit():
             cwd=str(BASE_DIR),
             capture_output=True,
             text=True,
-            timeout=900,
+            # Same growth problem as the rebuild: this has now failed to run
+            # for three consecutive weeks (5-30, 8-01, 8-08) purely on the
+            # 900s cap, so the history-wide checks silently stopped firing.
+            timeout=7200,
         )
         for line in result.stdout.splitlines():
             logger.info(f"  {line}")
@@ -419,7 +459,19 @@ def main():
     # All current logic (parser fixes, coalesce rules, coverage-gap
     # detection, cross-week bridging) re-applies to the full history.
     # This is what builds the chain-link indices used by every chart.
-    rebuild_summary_history_from_scratch()
+    # Abort rather than continue: every step below reads summary_history, so
+    # a stale one yields workbooks and a QA report for the PRIOR week while
+    # the run still prints "PIPELINE COMPLETE". Better to stop loudly.
+    try:
+        rebuild_summary_history_from_scratch()
+    except RebuildFailed as e:
+        logger.error("=" * 60)
+        logger.error("  ABORTING: summary_history is stale")
+        logger.error(f"  {e}")
+        logger.error("  Raw scrapes are saved and pushed; re-run the rebuild")
+        logger.error("  standalone, then re-run build_excel / build_charts.")
+        logger.error("=" * 60)
+        return 1
 
     # Step 4: Rebuild Excel
     rebuild_excel()
