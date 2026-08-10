@@ -2260,6 +2260,13 @@ SMOOTHED_NOTE = (
     "Not an observation; do not cite as a data point."
 )
 
+SMOOTHED_NOTE_CELL = (
+    "INTERPOLATED — no value for this REIT in this week.\n"
+    "Either the scraper returned nothing, or a coverage gap / methodology "
+    "break nulled its same-property metrics. Linear interpolation between "
+    "this REIT's nearest observed weeks. Not an observation."
+)
+
 
 def _with_missing_weeks(pivot):
     """Reindex a date-indexed pivot onto a complete weekly grid.
@@ -2314,12 +2321,15 @@ def _write_timeseries_rows(ws, header_row, pivot, interp_positions,
         write_data_row(ws, r, vals, alt=(i % 2 == 1),
                        number_formats=number_formats)
 
-        if not is_interp:
-            continue
-
-        # Interpolated row: replace each blank with a formula where possible.
+        # Fill blanks with interpolation formulas. Two distinct causes:
+        #   * whole row absent  -> the week was never scraped (is_interp)
+        #   * single cell blank -> that REIT alone has no value this week
+        #     (scraper missed it, or a coverage gap nulled its same-property
+        #     metrics). Same treatment: a chart otherwise breaks its line.
         for j, c in enumerate(pivot.columns):
             col = 2 + j
+            if not is_interp and pd.notna(row_series.get(c)):
+                continue                      # observed value, leave alone
             a = _nearest_observed(pivot, interp_positions, i, c, -1)
             b = _nearest_observed(pivot, interp_positions, i, c, +1)
             cell = ws.cell(row=r, column=col)
@@ -2327,9 +2337,18 @@ def _write_timeseries_rows(ws, header_row, pivot, interp_positions,
                 L = get_column_letter(col)
                 ra, rb = header_row + 1 + a, header_row + 1 + b
                 cell.value = f"={L}{ra}+({L}{rb}-{L}{ra})*{i - a}/{b - a}"
-                cell.comment = Comment(SMOOTHED_NOTE, "build_excel.py")
-            cell.fill = SMOOTHED_FILL
-            cell.font = SMOOTHED_FONT
+                cell.comment = Comment(
+                    SMOOTHED_NOTE if is_interp else SMOOTHED_NOTE_CELL,
+                    "build_excel.py")
+                cell.fill = SMOOTHED_FILL
+                cell.font = SMOOTHED_FONT
+            elif is_interp:
+                # No bracketing observation (gap runs to the series edge).
+                cell.fill = SMOOTHED_FILL
+                cell.font = SMOOTHED_FONT
+
+        if not is_interp:
+            continue
 
         # Flag the date cell too, so the row reads as interpolated at a glance.
         dcell = ws.cell(row=r, column=1)

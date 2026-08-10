@@ -29,6 +29,28 @@ warnings.filterwarnings("ignore")
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 RAW_DIR = BASE_DIR / "data" / "raw"
+
+# ── Scraper methodology breaks ───────────────────────────────────────────
+# Maps REIT -> first week whose raw data comes from a CHANGED extraction
+# method. A same-property change measured across one of these dates compares
+# two different measurement methods, not two points in time, so it is not a
+# real change and must not enter the chain-linked index.
+#
+# INVH 2026-08-01: before this week the scraper matched `property-card__price`
+# elements belonging to OTHER homes shown on the listing page, so `rent` was
+# statistically independent of the home's own size (corr(rent,sqft) 0.06-0.13
+# vs 0.61-0.65 for AMH, the SFR control). From 2026-08-01 it reads the subject
+# property's base rent (corr 0.49). The apparent +25.6% jump at 8-01 is that
+# method change, not a market move.
+METHODOLOGY_BREAKS = {
+    "INVH": pd.Timestamp("2026-08-01"),
+}
+
+
+def _straddles_methodology_break(reit, prev_d, curr_d):
+    """True if this pair spans a change in how the REIT's rent was measured."""
+    brk = METHODOLOGY_BREAKS.get(reit)
+    return brk is not None and prev_d < brk <= curr_d
 SUMMARY_PATH = BASE_DIR / "data" / "summary" / "summary_history.csv"
 
 # Reuse build_excel's macro_market resolver by importing it
@@ -315,6 +337,15 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
         Comparison is case-insensitive — scraper-side display-string
         changes (capitalization of stop-words, ALLCAPS → TitleCase) are
         NOT real coverage gaps."""
+        # A pair spanning a scraper methodology change is never valid, and
+        # must also block bridging: walking further back only finds older
+        # weeks on the OLD method, which is the same invalid comparison.
+        # Returning True for every such candidate leaves prev_date=None, so
+        # the straddling week gets no sp_* values at all — correct, because
+        # the change across the break is unmeasurable rather than merely noisy.
+        if _straddles_methodology_break(reit, prev_d, curr_d):
+            return True
+
         p_unit_n = len(panel_df[(panel_df["reit"] == reit)
                                  & (panel_df["scrape_date"] == prev_d)])
         c_unit_n = len(panel_df[(panel_df["reit"] == reit)
