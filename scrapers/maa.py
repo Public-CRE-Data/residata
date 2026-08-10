@@ -639,13 +639,70 @@ def extract_units(
 
     blocks = soup.find_all("div", class_="property-available-apartments__card")
     legacy = False
+    pac = False
+    if not blocks:
+        # Current DOM (Aug 2026): unit cards were renamed from
+        # `property-available-apartments__card` to `pac-card`. The section
+        # wrapper kept its old name, so only the card-level classes moved.
+        blocks = soup.find_all("div", class_="pac-card")
+        pac = bool(blocks)
     if not blocks:
         # Legacy DOM fallback
         blocks = soup.find_all("div", class_="available-apartments__body--apt")
         legacy = True
 
     for block in blocks:
-        if legacy:
+        if pac:
+            # ── Current DOM: pac-card ─────────────────────────────────
+            #   <span class="pac-card__unit-number">Unit # 02204</span>
+            #   <div  class="pac-card__price">Rent starting at $1,663</div>
+            #   <div  class="pac-card__stats">
+            #       <span>3 Beds</span><span>2 Baths</span><span>1,203 Sq. Ft.</span>
+            unit_number = None
+            un = block.find(class_="pac-card__unit-number")
+            if un:
+                raw = " ".join(un.get_text(" ", strip=True).split())
+                m = re.search(r"#\s*(\S+)", raw)
+                unit_number = m.group(1) if m else raw
+
+            rent = None
+            pr = block.find(class_="pac-card__price")
+            if pr:
+                # "Rent starting at $1,663" — take the dollar figure.
+                m = re.search(r"\$\s*([\d,]+)",
+                              " ".join(pr.get_text(" ", strip=True).split()))
+                if m:
+                    rent = parse_float(m.group(1).replace(",", ""))
+            if rent is None:
+                continue
+
+            beds = baths = sqft = None
+            st = block.find(class_="pac-card__stats")
+            if st:
+                for sp in st.find_all("span", recursive=False):
+                    t = " ".join(sp.get_text(" ", strip=True).split())
+                    if re.search(r"\bbeds?\b", t, re.I):
+                        m = re.search(r"([\d.]+)", t)
+                        beds = parse_float(m.group(1)) if m else None
+                        if beds is None and re.search(r"studio", t, re.I):
+                            beds = 0.0
+                    elif re.search(r"\bbaths?\b", t, re.I):
+                        m = re.search(r"([\d.]+)", t)
+                        baths = parse_float(m.group(1)) if m else None
+                    elif re.search(r"sq\.?\s*ft", t, re.I):
+                        m = re.search(r"([\d,]+)", t)
+                        sqft = parse_float(m.group(1).replace(",", "")) if m else None
+
+            # Not exposed on this card layout. Must be assigned explicitly:
+            # the shared tail below reads them, so leaving them unset would
+            # silently carry the previous unit's values forward.
+            move_in_date = None
+            fp_name = None
+            floor_level = None
+
+            unit_has_badge = bool(block.find(class_=re.compile(r"special|offer", re.I)))
+
+        elif legacy:
             # ── Legacy unit number / price / details (old DOM) ────────
             unit_number = None
             unit_span = block.find(class_="unit")
