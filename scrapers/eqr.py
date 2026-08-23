@@ -410,25 +410,58 @@ def scrape_eqr(
         logger.info(f"EQR: scraping {len(communities)} communities …")
 
         # ── 3. Scrape each community page ──────────────────────────────────
-        for i, comm in enumerate(communities, 1):
-            url = comm["url"]
-            logger.info(f"[{i}/{len(communities)}]  {comm['name']}  ({comm['market']})")
+        # A property that fails navigation is retried in later passes rather
+        # than dropped. Cloudflare blocks here are transient and rate-related:
+        # a single-attempt loop silently lost ~65% of discovered properties on
+        # 2026-08-22 (528 discovered -> 185 with units), and because the run
+        # still exits 0 the loss only surfaced as a coverage-gap warning
+        # downstream. Each pass backs off further to let the rate limit decay.
+        pending = list(communities)
+        MAX_PASSES = 3
 
-            if not _nav_property(page, url):
-                errors.append(url)
-                logger.warning(f"  Skipped.")
-                continue
+        for attempt in range(1, MAX_PASSES + 1):
+            if not pending:
+                break
+            if attempt > 1:
+                cool = 30 * attempt
+                logger.info(f"EQR: retry pass {attempt} for {len(pending)} "
+                            f"properties after {cool}s cool-down …")
+                time.sleep(cool)
 
-            rows = extract_units(page, comm)
-            logger.info(f"  → {len(rows)} units")
-            all_rows.extend(rows)
+            failed: list[dict] = []
+            for i, comm in enumerate(pending, 1):
+                url = comm["url"]
+                logger.info(f"[pass {attempt}] [{i}/{len(pending)}]  "
+                            f"{comm['name']}  ({comm['market']})")
 
-            time.sleep(1.0)   # polite inter-page delay
+                if not _nav_property(page, url):
+                    failed.append(comm)
+                    logger.warning("  nav failed — queued for retry.")
+                    continue
 
+                rows = extract_units(page, comm)
+                logger.info(f"  → {len(rows)} units")
+                all_rows.extend(rows)
+
+                # Back off harder on later passes to avoid re-tripping the limit.
+                time.sleep(1.0 * attempt)
+
+            pending = failed
+
+        errors = [c["url"] for c in pending]
         browser.close()
 
+    discovered = len(communities)
+    scraped = discovered - len(errors)
+    logger.info(f"EQR: {scraped}/{discovered} properties scraped "
+                f"({len(errors)} unrecoverable after {MAX_PASSES} passes).")
     if errors:
         logger.warning(f"Failed/skipped {len(errors)} URLs: {errors[:5]}")
+    # Loud signal: a large shortfall means the file is partial even though the
+    # process exits 0, which is exactly how the 8-22 week slipped through.
+    if discovered and len(errors) / discovered > 0.10:
+        logger.error(f"EQR: {len(errors)/discovered:.0%} of properties failed — "
+                     f"THIS SCRAPE IS PARTIAL, do not treat as full coverage.")
 
     if not all_rows:
         logger.error("EQR: 0 rows collected — returning empty DataFrame.")
