@@ -2087,13 +2087,25 @@ def build_charts_concessions_sheet(wb, df, summary_history_df=None):
     hdr = ["Date"] + reits_sorted
     write_header_row(ws, 3, hdr)
 
-    for i, dt in enumerate(dates_sorted):
-        row_vals = [dt] + [
-            pivot.loc[dt, r] if r in pivot.columns and dt in pivot.index and pd.notna(pivot.loc[dt, r]) else None
-            for r in reits_sorted
-        ]
-        fmts = [None] + [NUM_PCT] * len(reits_sorted)
-        write_data_row(ws, 4 + i, row_vals, alt=(i % 2 == 1), number_formats=fmts)
+    # Expand onto the full weekly grid so never-scraped weeks are shown as
+    # interpolated rows rather than collapsing the x-axis.
+    dates_sorted, _interp_cc = _full_week_dates([str(d)[:10] for d in dates_sorted])
+
+    def _cc_get(r, d):
+        if r not in pivot.columns:
+            return None
+        for key in (d, pd.Timestamp(d)):
+            try:
+                if key in pivot.index:
+                    v = pivot.loc[key, r]
+                    return None if pd.isna(v) else v
+            except Exception:
+                continue
+        return None
+
+    fmts = [None] + [NUM_PCT] * len(reits_sorted)
+    _write_dict_timeseries(ws, 3, dates_sorted, _interp_cc, reits_sorted,
+                           _cc_get, number_formats=fmts)
 
     # Footnote about excluded REITs
     if dropped:
@@ -2367,6 +2379,92 @@ def _smoothing_legend(ws, row, legend_font):
     c.font = legend_font
     c.fill = SMOOTHED_FILL
     return row + 1
+
+
+def _full_week_dates(sorted_dates):
+    """Expand a sorted list of 'YYYY-MM-DD' strings onto a complete weekly grid.
+
+    Returns (dates_full, interp_idx). Mirrors _with_missing_weeks, but for the
+    dict-of-dicts series used by the per-REIT market sheets, Charts_* and
+    Market_Comparison, which never went through a pandas pivot.
+    """
+    ds = [d for d in sorted_dates if d]
+    if len(ds) < 2:
+        return list(ds), set()
+    idx = pd.to_datetime(list(ds))
+    full = pd.date_range(idx.min(), idx.max(), freq="7D")
+    if len(full) <= len(idx):
+        return list(ds), set()
+    observed = set(idx)
+    out = [d.strftime("%Y-%m-%d") for d in full]
+    return out, {i for i, d in enumerate(full) if d not in observed}
+
+
+def _is_blank(v):
+    if v is None:
+        return True
+    try:
+        return bool(pd.isna(v))
+    except Exception:
+        return False
+
+
+def _seek_observed(dates_full, interp_idx, i, key, get, step):
+    """Nearest offset from i (walking by step) that is observed and non-blank."""
+    j = i + step
+    while 0 <= j < len(dates_full):
+        if j not in interp_idx and not _is_blank(get(key, dates_full[j])):
+            return j
+        j += step
+    return None
+
+
+def _write_dict_timeseries(ws, header_row, dates_full, interp_idx, col_keys, get,
+                           number_formats=None):
+    """Write a date-keyed series table, interpolating blanks with formulas.
+
+    `get(key, date_str)` returns the value for one column on one date.
+    Same visual contract as _write_timeseries_rows: amber fill, '*' on the
+    date, formulas referencing the bracketing observed cells.
+    """
+    from openpyxl.comments import Comment
+
+    for i, d in enumerate(dates_full):
+        r = header_row + 1 + i
+        is_interp = i in interp_idx
+
+        vals = [f"{d} *" if is_interp else d]
+        for k in col_keys:
+            v = None if is_interp else get(k, d)
+            vals.append(None if _is_blank(v) else v)
+        write_data_row(ws, r, vals, alt=(i % 2 == 1),
+                       number_formats=number_formats)
+
+        for j, k in enumerate(col_keys):
+            col = 2 + j
+            if not is_interp and not _is_blank(get(k, d)):
+                continue
+            a = _seek_observed(dates_full, interp_idx, i, k, get, -1)
+            b = _seek_observed(dates_full, interp_idx, i, k, get, +1)
+            cell = ws.cell(row=r, column=col)
+            if a is not None and b is not None:
+                L = get_column_letter(col)
+                ra, rb = header_row + 1 + a, header_row + 1 + b
+                cell.value = f"={L}{ra}+({L}{rb}-{L}{ra})*{i - a}/{b - a}"
+                cell.comment = Comment(
+                    SMOOTHED_NOTE if is_interp else SMOOTHED_NOTE_CELL,
+                    "build_excel.py")
+                cell.fill = SMOOTHED_FILL
+                cell.font = SMOOTHED_FONT
+            elif is_interp:
+                cell.fill = SMOOTHED_FILL
+                cell.font = SMOOTHED_FONT
+
+        if is_interp:
+            dc = ws.cell(row=r, column=1)
+            dc.fill = SMOOTHED_FILL
+            dc.font = SMOOTHED_FONT
+            dc.comment = Comment(SMOOTHED_NOTE, "build_excel.py")
 
 
 def _write_index_section(ws, start_row, title, calc_desc, pivot_index, chart_title, legend_font):
@@ -3011,17 +3109,20 @@ def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
         # ── Helper to write one set of index tables + charts ──────────────
         def _write_index_section(ws, start_row, label_prefix, index_data, date_set, chart_suffix):
             """Write full table + region charts for one index type. Returns next available row."""
-            sorted_dates_sec = sorted(date_set)
             mkts_sec = [m for m in reit_markets if m in index_data]
-            if not mkts_sec or not sorted_dates_sec:
+            if not mkts_sec or not date_set:
                 return start_row
+
+            # Expand onto a full weekly grid so never-scraped weeks appear as
+            # interpolated rows rather than being silently absent from the axis.
+            sorted_dates_sec, _interp_sec = _full_week_dates(sorted(date_set))
+            _get = lambda m, d: index_data[m].get(d)
 
             # Full table
             tbl_hdr = ["Date"] + mkts_sec
             write_header_row(ws, start_row, tbl_hdr)
-            for i, d in enumerate(sorted_dates_sec):
-                row_vals = [d] + [index_data[m].get(d) for m in mkts_sec]
-                write_data_row(ws, start_row + 1 + i, row_vals, alt=(i % 2 == 1))
+            _write_dict_timeseries(ws, start_row, sorted_dates_sec, _interp_sec,
+                                   mkts_sec, _get)
 
             n_tbl_rows = len(sorted_dates_sec)
             cur = start_row + 1 + n_tbl_rows + 1
@@ -3046,9 +3147,8 @@ def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
 
                 mini_hdr = ["Date"] + mkt_order
                 write_header_row(ws, cur, mini_hdr)
-                for i, d in enumerate(sorted_dates_sec):
-                    row_vals = [d] + [index_data[m].get(d) for m in mkt_order]
-                    write_data_row(ws, cur + 1 + i, row_vals, alt=(i % 2 == 1))
+                _write_dict_timeseries(ws, cur, sorted_dates_sec, _interp_sec,
+                                       mkt_order, _get)
 
                 n_mini = len(sorted_dates_sec)
 
@@ -3225,16 +3325,15 @@ def build_market_comparison_sheet(wb, df, sp_df, summary_history_df):
             if len(reits_ok) < 2 or not mkt_dates:
                 continue
 
-            s_dates = sorted(mkt_dates)
+            s_dates, _interp_mc = _full_week_dates(sorted(mkt_dates))
 
             ws.cell(row=cur, column=1, value=mkt).font = SUBHEAD_FONT
             cur += 1
 
             tbl_hdr = ["Date"] + reits_ok
             write_header_row(ws, cur, tbl_hdr)
-            for i, d in enumerate(s_dates):
-                row_vals = [d] + [reit_idx[r].get(d) for r in reits_ok]
-                write_data_row(ws, cur + 1 + i, row_vals, alt=(i % 2 == 1))
+            _write_dict_timeseries(ws, cur, s_dates, _interp_mc, reits_ok,
+                                   lambda r, d: reit_idx[r].get(d))
 
             n_rows = len(s_dates)
 
