@@ -1,0 +1,261 @@
+date,series,value,interpolated
+2026-03-28,Seattle,100.0,False
+2026-03-28,Los Angeles,100.0,False
+2026-03-28,San Jose,100.0,False
+2026-03-28,San Francisco-East Bay,100.0,False
+2026-03-28,Orange County,100.0,False
+2026-03-28,San Diego,100.0,False
+2026-03-28,San Francisco,100.0,False
+2026-03-28,Santa Barbara,100.0,False
+2026-03-28,Salinas/Monterey,100.0,False
+2026-03-28,Other,100.0,False
+2026-04-04,Seattle,100.11,False
+2026-04-04,Los Angeles,99.57,False
+2026-04-04,San Jose,99.39,False
+2026-04-04,San Francisco-East Bay,99.6,False
+2026-04-04,Orange County,99.99,False
+2026-04-04,San Diego,99.9,False
+2026-04-04,San Francisco,100.53,False
+2026-04-04,Santa Barbara,100.51,False
+2026-04-04,Salinas/Monterey,100.0,False
+2026-04-04,Other,100.5,False
+2026-04-11,Seattle,101.04,False
+2026-04-11,Los Angeles,98.53,False
+2026-04-11,San Jose,100.01,False
+2026-04-11,San Francisco-East Bay,100.55,False
+2026-04-11,Orange County,101.01,False
+2026-04-11,San Diego,100.2,False
+2026-04-11,San Francisco,100.66,False
+2026-04-11,Santa Barbara,99.77,False
+2026-04-11,Salinas/Monterey,102.76,False
+2026-04-11,Other,99.34,False
+2026-04-18,Seattle,100.75,False
+2026-04-18,Los Angeles,97.6,False
+2026-04-18,San Jose,100.68,False
+2026-04-18,San Francisco-East Bay,101.25,False
+2026-04-18,Orange County,100.78,False
+2026-04-18,San Diego,100.88,False
+2026-04-18,San Francisco,101.32,False
+2026-04-18,Santa Barbara,99.81,False
+2026-04-18,Salinas/Monterey,102.75,False
+2026-04-18,Other,96.65,False
+2026-04-25,Seattle,100.11,False
+2026-04-25,Los Angeles,97.65,False
+2026-04-25,San Jose,100.76,False
+2026-04-25,San Francisco-East Bay,101.84,False
+2026-04-25,Orange County,100.13,False
+2026-04-25,San Diego,100.87,False
+2026-04-25,San Francisco,101.07,False
+2026-04-25,Santa Barbara,100.22,False
+2026-04-25,Denver,100.0,False
+2026-04-25,Salinas/Monterey,103.92,False
+2026-04-25,Other,95.1,False
+2026-05-02,Seattle,100.43,False
+2026-05-02,Los Angeles,97.33,False
+2026-05-02,San Jose,101.12,False
+2026-05-02,San Francisco-East Bay,101.65,False
+2026-05-02,Orange County,100.1,False
+2026-05-02,San Diego,100.67,False
+2026-05-02,San Francisco,100.82,False
+2026-05-02,Santa Barbara,99.5,False
+2026-05-02,Denver,104.0,False
+2026-05-02,Salinas/Monterey,105.66,False
+2026-05-02,Other,94.51,False
+2026-05-09,Seattle,100.83,False
+2026-05-09,Los Angeles,97.62,False
+2026-05-09,San Jose,101.4,False
+2026-05-09,San Francisco-East Bay,102.96,False
+2026-05-09,Orange County,99.96,False
+2026-05-09,San Diego,102.3,False
+2026-05-09,San Francisco,100.88,False
+2026-05-09,Santa Barbara,102.07,False
+2026-05-09,Denver,108.745,True
+2026-05-09,Salinas/Monterey,109.29,False
+2026-05-09,Other,94.4,False
+2026-05-16,Seattle,100.9,False
+2026-05-16,Los Angeles,97.56,False
+2026-05-16,San Jose,103.14,False
+2026-05-16,San Francisco-East Bay,104.04,False
+2026-05-16,Orange County,99.94,False
+2026-05-16,San Diego,101.65,False
+2026-05-16,San Francisco,101.15,False
+2026-05-16,Santa Barbara,101.73,False
+2026-05-16,Denver,113.49,False
+2026-05-16,Salinas/Monterey,113.32,False
+2026-05-16,Other,92.88,False
+2026-05-23,Seattle,101.08,False
+2026-05-23,Los Angeles,97.54,False
+2026-05-23,San Jose,104.0,False
+2026-05-23,San Francisco-East Bay,104.27,False
+2026-05-23,Orange County,100.18,False
+2026-05-23,San Diego,101.07,False
+2026-05-23,San Francisco,101.49,False
+2026-05-23,Santa Barbara,100.77,False
+2026-05-23,Denver,113.34,False
+2026-05-23,Salinas/Monterey,113.08,False
+2026-05-23,Other,94.98,False
+2026-05-30,Seattle,101.08,False
+2026-05-30,Los Angeles,96.85,False
+2026-05-30,San Jose,104.88,False
+2026-05-30,San Francisco-East Bay,104.38,False
+2026-05-30,Orange County,99.71,False
+2026-05-30,San Diego,100.99,False
+2026-05-30,San Francisco,102.21,False
+2026-05-30,Santa Barbara,100.94,False
+2026-05-30,Denver,112.33,False
+2026-05-30,Salinas/Monterey,112.67,False
+2026-05-30,Other,94.55,False
+2026-06-06,Seattle,100.94,False
+2026-06-06,Los Angeles,96.24,False
+2026-06-06,San Jose,105.93,False
+2026-06-06,San Francisco-East Bay,104.9,False
+2026-06-06,Orange County,100.12,False
+2026-06-06,San Diego,100.61,False
+2026-06-06,San Francisco,102.08,False
+2026-06-06,Santa Barbara,100.62,False
+2026-06-06,Denver,112.09,False
+2026-06-06,Salinas/Monterey,112.42,False
+2026-06-06,Other,94.94,False
+2026-06-13,Seattle,100.06,False
+2026-06-13,Los Angeles,95.96,False
+2026-06-13,San Jose,105.73,False
+2026-06-13,San Francisco-East Bay,104.46,False
+2026-06-13,Orange County,100.49,False
+2026-06-13,San Diego,100.8,False
+2026-06-13,San Francisco,102.18,False
+2026-06-13,Santa Barbara,99.4,False
+2026-06-13,Denver,104.28,False
+2026-06-13,Salinas/Monterey,111.32,False
+2026-06-13,Other,94.55,False
+2026-06-20,Seattle,100.29,False
+2026-06-20,Los Angeles,95.4,False
+2026-06-20,San Jose,106.04,False
+2026-06-20,San Francisco-East Bay,105.17,False
+2026-06-20,Orange County,100.64,False
+2026-06-20,San Diego,99.54,False
+2026-06-20,San Francisco,103.3,False
+2026-06-20,Santa Barbara,99.71,False
+2026-06-20,Denver,107.25,False
+2026-06-20,Salinas/Monterey,109.77,False
+2026-06-20,Other,95.27,False
+2026-06-27,Seattle,100.1225,True
+2026-06-27,Los Angeles,94.985,True
+2026-06-27,San Jose,105.7925,True
+2026-06-27,San Francisco-East Bay,105.31,True
+2026-06-27,Orange County,100.34,True
+2026-06-27,San Diego,99.49,True
+2026-06-27,San Francisco,103.77,True
+2026-06-27,Santa Barbara,100.2,True
+2026-06-27,Denver,108.39,True
+2026-06-27,Salinas/Monterey,108.315,True
+2026-06-27,Other,95.3575,True
+2026-07-04,Seattle,99.955,True
+2026-07-04,Los Angeles,94.57,True
+2026-07-04,San Jose,105.545,True
+2026-07-04,San Francisco-East Bay,105.45,True
+2026-07-04,Orange County,100.04,True
+2026-07-04,San Diego,99.44,True
+2026-07-04,San Francisco,104.24,True
+2026-07-04,Santa Barbara,100.69,True
+2026-07-04,Denver,109.53,True
+2026-07-04,Salinas/Monterey,106.86,True
+2026-07-04,Other,95.445,True
+2026-07-11,Seattle,99.7875,True
+2026-07-11,Los Angeles,94.155,True
+2026-07-11,San Jose,105.2975,True
+2026-07-11,San Francisco-East Bay,105.59,True
+2026-07-11,Orange County,99.74,True
+2026-07-11,San Diego,99.39,True
+2026-07-11,San Francisco,104.71,True
+2026-07-11,Santa Barbara,101.18,True
+2026-07-11,Denver,110.67,True
+2026-07-11,Salinas/Monterey,105.405,True
+2026-07-11,Other,95.5325,True
+2026-07-18,Seattle,99.62,False
+2026-07-18,Los Angeles,93.74,False
+2026-07-18,San Jose,105.05,False
+2026-07-18,San Francisco-East Bay,105.73,False
+2026-07-18,Orange County,99.44,False
+2026-07-18,San Diego,99.34,False
+2026-07-18,San Francisco,105.18,False
+2026-07-18,Santa Barbara,101.67,False
+2026-07-18,Denver,111.81,False
+2026-07-18,Salinas/Monterey,103.95,False
+2026-07-18,Other,95.62,False
+2026-07-25,Seattle,98.985,True
+2026-07-25,Los Angeles,93.925,True
+2026-07-25,San Jose,105.6,True
+2026-07-25,San Francisco-East Bay,105.97,True
+2026-07-25,Orange County,99.86,True
+2026-07-25,San Diego,99.505,True
+2026-07-25,San Francisco,103.75,True
+2026-07-25,Santa Barbara,102.72,True
+2026-07-25,Denver,111.295,True
+2026-07-25,Salinas/Monterey,104.5,True
+2026-07-25,Other,95.405,True
+2026-08-01,Seattle,98.35,False
+2026-08-01,Los Angeles,94.11,False
+2026-08-01,San Jose,106.15,False
+2026-08-01,San Francisco-East Bay,106.21,False
+2026-08-01,Orange County,100.28,False
+2026-08-01,San Diego,99.67,False
+2026-08-01,San Francisco,102.32,False
+2026-08-01,Santa Barbara,103.77,False
+2026-08-01,Denver,110.78,False
+2026-08-01,Salinas/Monterey,105.05,False
+2026-08-01,Other,95.19,False
+2026-08-08,Seattle,98.19,False
+2026-08-08,Los Angeles,93.9,False
+2026-08-08,San Jose,106.44,False
+2026-08-08,San Francisco-East Bay,106.26,False
+2026-08-08,Orange County,99.82,False
+2026-08-08,San Diego,99.33,False
+2026-08-08,San Francisco,102.0,False
+2026-08-08,Santa Barbara,103.1,False
+2026-08-08,Denver,111.62,False
+2026-08-08,Salinas/Monterey,106.44,False
+2026-08-08,Other,96.72,False
+2026-08-15,Seattle,98.09,False
+2026-08-15,Los Angeles,93.83,False
+2026-08-15,San Jose,105.45,False
+2026-08-15,San Francisco-East Bay,106.74,False
+2026-08-15,Orange County,100.18,False
+2026-08-15,San Diego,99.22,False
+2026-08-15,San Francisco,101.89,False
+2026-08-15,Santa Barbara,102.88,False
+2026-08-15,Denver,111.31,False
+2026-08-15,Salinas/Monterey,104.2,False
+2026-08-15,Other,97.38,False
+2026-08-22,Seattle,97.05,False
+2026-08-22,Los Angeles,93.98,False
+2026-08-22,San Jose,105.49,False
+2026-08-22,San Francisco-East Bay,106.48,False
+2026-08-22,Orange County,99.82,False
+2026-08-22,San Diego,98.92,False
+2026-08-22,San Francisco,103.77,False
+2026-08-22,Santa Barbara,102.31,False
+2026-08-22,Denver,106.99,False
+2026-08-22,Salinas/Monterey,103.74,False
+2026-08-22,Other,94.61,False
+2026-08-29,Seattle,95.67,False
+2026-08-29,Los Angeles,93.72,False
+2026-08-29,San Jose,104.26,False
+2026-08-29,San Francisco-East Bay,106.81,False
+2026-08-29,Orange County,100.98,False
+2026-08-29,San Diego,99.37,False
+2026-08-29,San Francisco,103.02,False
+2026-08-29,Santa Barbara,99.93,False
+2026-08-29,Denver,110.12,False
+2026-08-29,Salinas/Monterey,99.91,False
+2026-08-29,Other,93.11,False
+2026-09-05,Seattle,95.37,False
+2026-09-05,Los Angeles,93.41,False
+2026-09-05,San Jose,104.27,False
+2026-09-05,San Francisco-East Bay,106.39,False
+2026-09-05,Orange County,101.33,False
+2026-09-05,San Diego,99.28,False
+2026-09-05,San Francisco,103.8,False
+2026-09-05,Santa Barbara,103.36,False
+2026-09-05,Denver,109.97,False
+2026-09-05,Salinas/Monterey,99.91,False
+2026-09-05,Other,93.56,False

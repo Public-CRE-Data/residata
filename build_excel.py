@@ -2104,6 +2104,8 @@ def build_charts_concessions_sheet(wb, df, summary_history_df=None):
         return None
 
     fmts = [None] + [NUM_PCT] * len(reits_sorted)
+    _register_derived_dict("charts_concession_rate", dates_sorted,
+                           reits_sorted, _cc_get)
     _write_dict_timeseries(ws, 3, dates_sorted, _interp_cc, reits_sorted,
                            _cc_get, number_formats=fmts)
 
@@ -2381,6 +2383,75 @@ def _smoothing_legend(ws, row, legend_font):
     return row + 1
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# DERIVED-DATA EXPORT
+# ─────────────────────────────────────────────────────────────────────────────
+# The analysis tabs (Same_Prop_Trends, Charts_Concessions, the per-REIT
+# <TICKER>_Markets sheets and Market_Comparison) previously existed only inside
+# a local .xlsx. Only data/raw and summary_history reached GitHub, so none of
+# the derived series were reproducible or diffable from the repo.
+#
+# Each block registers itself here at the point it is written, so the CSVs are
+# generated from the exact same objects the workbook renders — no parallel
+# reimplementation that could drift.
+#
+# Long format (date, series, value, interpolated) because it carries the
+# interpolation flag per CELL. The workbook stores Excel formulas in those
+# cells; a CSV needs the computed number instead, plus an explicit marker so a
+# consumer never mistakes an interpolated point for an observation.
+
+_DERIVED_EXPORTS: dict = {}
+
+
+def _derive_long(pivot, interp_positions=None):
+    """Long-format frame with linear interpolation applied and flagged."""
+    if pivot is None or len(pivot) == 0:
+        return None
+    num = pivot.apply(pd.to_numeric, errors="coerce")
+    # limit_area="inside" => never extrapolate past the first/last observation.
+    filled = num.interpolate(method="linear", limit_area="inside")
+    dates = [str(d)[:10] for d in num.index]
+    rows = []
+    for i, d in enumerate(dates):
+        for col in num.columns:
+            val = filled.iloc[i][col]
+            if pd.isna(val):
+                continue
+            rows.append({
+                "date": d,
+                "series": str(col),
+                "value": round(float(val), 4),
+                "interpolated": bool(pd.isna(num.iloc[i][col])),
+            })
+    return pd.DataFrame(rows) if rows else None
+
+
+def _register_derived(name, pivot, interp_positions=None):
+    df = _derive_long(pivot, interp_positions)
+    if df is not None and not df.empty:
+        _DERIVED_EXPORTS[name] = df
+
+
+def _register_derived_dict(name, dates_full, col_keys, get):
+    """Register a dict-of-dicts series (per-REIT markets, Market_Comparison)."""
+    if not dates_full or not col_keys:
+        return
+    data = {k: [get(k, d) for d in dates_full] for k in col_keys}
+    piv = pd.DataFrame(data, index=pd.to_datetime(dates_full))
+    _register_derived(name, piv)
+
+
+def write_derived_exports(out_dir):
+    """Write every registered block to CSV. Returns list of paths written."""
+    os.makedirs(out_dir, exist_ok=True)
+    written = []
+    for name, df in sorted(_DERIVED_EXPORTS.items()):
+        path = os.path.join(out_dir, f"{name}.csv")
+        df.to_csv(path, index=False)
+        written.append(path)
+    return written
+
+
 def _full_week_dates(sorted_dates):
     """Expand a sorted list of 'YYYY-MM-DD' strings onto a complete weekly grid.
 
@@ -2485,6 +2556,9 @@ def _write_index_section(ws, start_row, title, calc_desc, pivot_index, chart_tit
     # Insert never-scraped weeks so the chart's x-axis is evenly spaced and the
     # gap is visible rather than hidden inside one long straight segment.
     pivot_index, interp_pos = _with_missing_weeks(pivot_index)
+    _register_derived(
+        "index_" + re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_"),
+        pivot_index, interp_pos)
 
     idx_hdr = ["Date"] + list(pivot_index.columns)
     write_header_row(ws, start_row, idx_hdr)
@@ -2733,6 +2807,7 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
             "Avg asking rent ($) for this REIT's same-property pool on this date.", "build_excel.py")
 
     pivot_rent, rent_interp = _with_missing_weeks(pivot_rent)
+    _register_derived("same_prop_avg_rent", pivot_rent, rent_interp)
     rent_fmts = [None] + [NUM_CURRENCY] * len(pivot_rent.columns)
     _write_timeseries_rows(ws, rent_start, pivot_rent, rent_interp,
                            number_formats=rent_fmts, decimals=0)
@@ -2817,6 +2892,7 @@ def build_same_prop_sheet(wb, df, sp_df, summary_history_df=None):
                 "Count-weighted avg NER ($) for matched same-property units on this date.", "build_excel.py")
 
         pivot_ner, ner_interp = _with_missing_weeks(pivot_ner)
+        _register_derived("same_prop_avg_ner", pivot_ner, ner_interp)
         ner_fmts = [None] + [NUM_CURRENCY] * len(pivot_ner.columns)
         _write_timeseries_rows(ws, ner_start, pivot_ner, ner_interp,
                                number_formats=ner_fmts, decimals=0)
@@ -3121,6 +3197,10 @@ def build_reit_market_sheets(wb, df, sp_df, summary_history_df):
             # Full table
             tbl_hdr = ["Date"] + mkts_sec
             write_header_row(ws, start_row, tbl_hdr)
+            _register_derived_dict(
+                f"markets_{reit.lower()}_"
+                + re.sub(r"[^a-z0-9]+", "_", label_prefix.lower()).strip("_"),
+                sorted_dates_sec, mkts_sec, _get)
             _write_dict_timeseries(ws, start_row, sorted_dates_sec, _interp_sec,
                                    mkts_sec, _get)
 
@@ -3332,6 +3412,10 @@ def build_market_comparison_sheet(wb, df, sp_df, summary_history_df):
 
             tbl_hdr = ["Date"] + reits_ok
             write_header_row(ws, cur, tbl_hdr)
+            _register_derived_dict(
+                "market_comparison_"
+                + re.sub(r"[^a-z0-9]+", "_", f"{mkt}_{chart_label}".lower()).strip("_"),
+                s_dates, reits_ok, lambda r, d: reit_idx[r].get(d))
             _write_dict_timeseries(ws, cur, s_dates, _interp_mc, reits_ok,
                                    lambda r, d: reit_idx[r].get(d))
 
@@ -3518,10 +3602,15 @@ def main():
         print(f"    {sname}: {ws.max_row:,} rows")
 
     print(f"\n{'=' * 60}")
+    derived_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "data", "derived")
+    _written = write_derived_exports(derived_dir)
+
     print(f"  Output saved: {out_path}")
     print(f"  File size:    {file_size_kb:.1f} KB")
     print(f"  Sheets:       {', '.join(wb.sheetnames)}")
     print(f"  Summary history: {LOCAL_SUMMARY_DIR}/summary_history.csv")
+    print(f"  Derived CSVs:    {len(_written)} files -> data/derived/")
     print(f"{'=' * 60}\n")
 
 

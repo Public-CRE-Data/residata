@@ -1,0 +1,755 @@
+date,series,value,interpolated
+2026-04-04,Dallas/Fort Worth,100.0,False
+2026-04-04,Atlanta,100.0,False
+2026-04-04,Austin,100.0,False
+2026-04-04,Charlotte,100.0,False
+2026-04-04,Orlando,100.0,False
+2026-04-04,Raleigh/Durham,100.0,False
+2026-04-04,Tampa,100.0,False
+2026-04-04,Nashville,100.0,False
+2026-04-04,Houston,100.0,False
+2026-04-04,Jacksonville,100.0,False
+2026-04-04,"Washington, DC",100.0,False
+2026-04-04,Phoenix,100.0,False
+2026-04-04,Charleston,100.0,False
+2026-04-04,Memphis,100.0,False
+2026-04-04,Greenville,100.0,False
+2026-04-04,Savannah,100.0,False
+2026-04-04,Denver,100.0,False
+2026-04-04,Kansas City,100.0,False
+2026-04-04,Huntsville,100.0,False
+2026-04-04,Lexington,100.0,False
+2026-04-04,Las Vegas,100.0,False
+2026-04-04,Birmingham,100.0,False
+2026-04-04,Chattanooga,100.0,False
+2026-04-04,Hampton Roads,100.0,False
+2026-04-04,Gainesville,100.0,False
+2026-04-04,Tallahassee,100.0,False
+2026-04-04,Miami/Fort Lauderdale,100.0,False
+2026-04-04,Gulf Shores,100.0,False
+2026-04-04,Louisville,100.0,False
+2026-04-04,Panama City Beach,100.0,False
+2026-04-11,Dallas/Fort Worth,99.3,False
+2026-04-11,Atlanta,100.29,False
+2026-04-11,Austin,98.13,False
+2026-04-11,Charlotte,99.47,False
+2026-04-11,Orlando,101.8,False
+2026-04-11,Raleigh/Durham,100.44,False
+2026-04-11,Tampa,97.5,False
+2026-04-11,Nashville,99.7,False
+2026-04-11,Houston,100.75,False
+2026-04-11,Jacksonville,100.54,False
+2026-04-11,"Washington, DC",102.97,False
+2026-04-11,Phoenix,98.96,False
+2026-04-11,Charleston,99.88,False
+2026-04-11,Memphis,97.74,False
+2026-04-11,Greenville,100.09,False
+2026-04-11,Savannah,98.37,False
+2026-04-11,Denver,99.63,False
+2026-04-11,Kansas City,105.1,False
+2026-04-11,Huntsville,99.15,False
+2026-04-11,Lexington,98.3,False
+2026-04-11,Las Vegas,99.3,False
+2026-04-11,Birmingham,99.17,False
+2026-04-11,Chattanooga,99.44,False
+2026-04-11,Hampton Roads,101.0,False
+2026-04-11,Gainesville,102.34,False
+2026-04-11,Tallahassee,100.83,False
+2026-04-11,Miami/Fort Lauderdale,97.43,False
+2026-04-11,Gulf Shores,104.53,False
+2026-04-11,Louisville,99.04,False
+2026-04-11,Panama City Beach,94.91,False
+2026-04-18,Dallas/Fort Worth,99.1,False
+2026-04-18,Atlanta,100.16,False
+2026-04-18,Austin,96.52,False
+2026-04-18,Charlotte,99.77,False
+2026-04-18,Orlando,101.75,False
+2026-04-18,Raleigh/Durham,100.2,False
+2026-04-18,Tampa,97.65,False
+2026-04-18,Nashville,99.37,False
+2026-04-18,Houston,100.07,False
+2026-04-18,Jacksonville,101.35,False
+2026-04-18,"Washington, DC",101.34,False
+2026-04-18,Phoenix,99.15,False
+2026-04-18,Charleston,100.35,False
+2026-04-18,Memphis,98.39,False
+2026-04-18,Greenville,99.54,False
+2026-04-18,Savannah,96.75,False
+2026-04-18,Denver,99.92,False
+2026-04-18,Kansas City,102.78,False
+2026-04-18,San Antonio,100.0,False
+2026-04-18,Huntsville,95.97,False
+2026-04-18,Lexington,99.61,False
+2026-04-18,Las Vegas,100.27,False
+2026-04-18,Birmingham,99.9,False
+2026-04-18,Chattanooga,98.37,False
+2026-04-18,Hampton Roads,110.19,False
+2026-04-18,Gainesville,100.33,False
+2026-04-18,Tallahassee,99.38,False
+2026-04-18,Miami/Fort Lauderdale,96.0,False
+2026-04-18,Gulf Shores,109.96,False
+2026-04-18,Louisville,98.53,False
+2026-04-18,Charlottesville,100.0,False
+2026-04-18,Panama City Beach,95.56,False
+2026-04-25,Dallas/Fort Worth,98.37,False
+2026-04-25,Atlanta,98.51,False
+2026-04-25,Austin,95.54,False
+2026-04-25,Charlotte,100.16,False
+2026-04-25,Orlando,100.69,False
+2026-04-25,Raleigh/Durham,100.59,False
+2026-04-25,Tampa,97.47,False
+2026-04-25,Nashville,99.57,False
+2026-04-25,Houston,99.4,False
+2026-04-25,Jacksonville,101.79,False
+2026-04-25,"Washington, DC",100.59,False
+2026-04-25,Phoenix,98.68,False
+2026-04-25,Charleston,100.7,False
+2026-04-25,Memphis,97.91,False
+2026-04-25,Greenville,98.45,False
+2026-04-25,Savannah,95.28,False
+2026-04-25,Denver,101.32,False
+2026-04-25,Kansas City,102.74,False
+2026-04-25,San Antonio,98.08,False
+2026-04-25,Huntsville,95.39,False
+2026-04-25,Lexington,100.24,False
+2026-04-25,Las Vegas,100.87,False
+2026-04-25,Birmingham,100.11,False
+2026-04-25,Chattanooga,97.96,False
+2026-04-25,Salt Lake City,100.0,False
+2026-04-25,Hampton Roads,110.11,False
+2026-04-25,Gainesville,99.48,False
+2026-04-25,Tallahassee,98.64,False
+2026-04-25,Miami/Fort Lauderdale,93.97,False
+2026-04-25,Gulf Shores,109.87,False
+2026-04-25,Louisville,98.64,False
+2026-04-25,Charlottesville,101.08,False
+2026-04-25,Panama City Beach,95.79,False
+2026-05-02,Dallas/Fort Worth,98.15,False
+2026-05-02,Atlanta,98.17,False
+2026-05-02,Austin,94.63,False
+2026-05-02,Charlotte,100.47,False
+2026-05-02,Orlando,100.26,False
+2026-05-02,Raleigh/Durham,100.68,False
+2026-05-02,Tampa,97.16,False
+2026-05-02,Nashville,99.2,False
+2026-05-02,Houston,98.29,False
+2026-05-02,Jacksonville,101.0,False
+2026-05-02,"Washington, DC",98.79,False
+2026-05-02,Phoenix,98.45,False
+2026-05-02,Charleston,100.57,False
+2026-05-02,Memphis,97.98,False
+2026-05-02,Greenville,98.91,False
+2026-05-02,Savannah,94.5,False
+2026-05-02,Denver,102.51,False
+2026-05-02,Kansas City,102.04,False
+2026-05-02,San Antonio,98.0,False
+2026-05-02,Huntsville,96.77,False
+2026-05-02,Lexington,100.09,False
+2026-05-02,Las Vegas,100.18,False
+2026-05-02,Birmingham,97.66,False
+2026-05-02,Chattanooga,98.82,False
+2026-05-02,Salt Lake City,100.13,False
+2026-05-02,Hampton Roads,110.5,False
+2026-05-02,Gainesville,100.56,False
+2026-05-02,Tallahassee,97.74,False
+2026-05-02,Miami/Fort Lauderdale,92.15,False
+2026-05-02,Gulf Shores,108.43,False
+2026-05-02,Louisville,99.11,False
+2026-05-02,Charlottesville,101.19,False
+2026-05-02,Panama City Beach,97.34,False
+2026-05-09,Dallas/Fort Worth,98.69,False
+2026-05-09,Atlanta,98.08,False
+2026-05-09,Austin,93.31,False
+2026-05-09,Charlotte,100.41,False
+2026-05-09,Orlando,99.94,False
+2026-05-09,Raleigh/Durham,100.66,False
+2026-05-09,Tampa,96.52,False
+2026-05-09,Nashville,99.5,False
+2026-05-09,Houston,97.54,False
+2026-05-09,Jacksonville,100.28,False
+2026-05-09,"Washington, DC",97.93,False
+2026-05-09,Phoenix,98.33,False
+2026-05-09,Charleston,100.72,False
+2026-05-09,Memphis,96.86,False
+2026-05-09,Greenville,98.89,False
+2026-05-09,Savannah,95.3,False
+2026-05-09,Denver,101.95,False
+2026-05-09,Kansas City,103.82,False
+2026-05-09,San Antonio,96.26,False
+2026-05-09,Huntsville,95.56,False
+2026-05-09,Lexington,100.04,False
+2026-05-09,Las Vegas,101.31,False
+2026-05-09,Birmingham,97.88,False
+2026-05-09,Chattanooga,98.59,False
+2026-05-09,Salt Lake City,99.54,False
+2026-05-09,Hampton Roads,110.47,False
+2026-05-09,Gainesville,104.84,False
+2026-05-09,Tallahassee,98.06,False
+2026-05-09,Miami/Fort Lauderdale,91.18,False
+2026-05-09,Gulf Shores,107.8,False
+2026-05-09,Louisville,95.88,False
+2026-05-09,Charlottesville,101.21,False
+2026-05-09,Panama City Beach,96.53,False
+2026-05-16,Dallas/Fort Worth,99.15,False
+2026-05-16,Atlanta,97.76,False
+2026-05-16,Austin,93.35,False
+2026-05-16,Charlotte,100.44,False
+2026-05-16,Orlando,100.21,False
+2026-05-16,Raleigh/Durham,99.54,False
+2026-05-16,Tampa,96.66,False
+2026-05-16,Nashville,99.11,False
+2026-05-16,Houston,97.04,False
+2026-05-16,Jacksonville,101.34,False
+2026-05-16,"Washington, DC",98.0,False
+2026-05-16,Phoenix,94.96,False
+2026-05-16,Charleston,100.25,False
+2026-05-16,Memphis,97.2,False
+2026-05-16,Greenville,98.7,False
+2026-05-16,Savannah,95.67,False
+2026-05-16,Denver,101.57,False
+2026-05-16,Kansas City,102.55,False
+2026-05-16,San Antonio,96.51,False
+2026-05-16,Huntsville,93.88,False
+2026-05-16,Lexington,99.23,False
+2026-05-16,Las Vegas,99.99,False
+2026-05-16,Birmingham,98.01,False
+2026-05-16,Chattanooga,96.32,False
+2026-05-16,Salt Lake City,101.47,False
+2026-05-16,Hampton Roads,109.69,False
+2026-05-16,Gainesville,103.55,False
+2026-05-16,Tallahassee,97.91,False
+2026-05-16,Miami/Fort Lauderdale,93.07,False
+2026-05-16,Gulf Shores,108.23,False
+2026-05-16,Louisville,91.5,False
+2026-05-16,Charlottesville,97.18,False
+2026-05-16,Panama City Beach,97.94,False
+2026-05-23,Dallas/Fort Worth,98.53,False
+2026-05-23,Atlanta,97.67,False
+2026-05-23,Austin,93.68,False
+2026-05-23,Charlotte,100.32,False
+2026-05-23,Orlando,98.89,False
+2026-05-23,Raleigh/Durham,98.5,False
+2026-05-23,Tampa,96.28,False
+2026-05-23,Nashville,98.12,False
+2026-05-23,Houston,96.38,False
+2026-05-23,Jacksonville,101.62,False
+2026-05-23,"Washington, DC",96.73,False
+2026-05-23,Phoenix,96.41,False
+2026-05-23,Charleston,100.04,False
+2026-05-23,Memphis,97.72,False
+2026-05-23,Greenville,98.7,False
+2026-05-23,Savannah,95.76,False
+2026-05-23,Denver,102.53,False
+2026-05-23,Kansas City,102.01,False
+2026-05-23,San Antonio,94.12,False
+2026-05-23,Huntsville,91.8,False
+2026-05-23,Lexington,97.45,False
+2026-05-23,Las Vegas,100.0,False
+2026-05-23,Birmingham,98.59,False
+2026-05-23,Chattanooga,94.96,False
+2026-05-23,Salt Lake City,101.81,False
+2026-05-23,Hampton Roads,107.66,False
+2026-05-23,Gainesville,101.8,False
+2026-05-23,Tallahassee,98.03,False
+2026-05-23,Miami/Fort Lauderdale,94.28,False
+2026-05-23,Gulf Shores,104.96,False
+2026-05-23,Louisville,87.47,False
+2026-05-23,Charlottesville,96.86,False
+2026-05-23,Panama City Beach,98.54,False
+2026-05-30,Dallas/Fort Worth,97.91,False
+2026-05-30,Atlanta,97.15,False
+2026-05-30,Austin,93.23,False
+2026-05-30,Charlotte,100.47,False
+2026-05-30,Orlando,98.77,False
+2026-05-30,Raleigh/Durham,96.89,False
+2026-05-30,Tampa,96.63,False
+2026-05-30,Nashville,97.68,False
+2026-05-30,Houston,95.84,False
+2026-05-30,Jacksonville,102.85,False
+2026-05-30,"Washington, DC",96.22,False
+2026-05-30,Phoenix,96.55,False
+2026-05-30,Charleston,100.41,False
+2026-05-30,Memphis,98.72,False
+2026-05-30,Greenville,98.36,False
+2026-05-30,Savannah,95.6,False
+2026-05-30,Denver,103.19,False
+2026-05-30,Kansas City,101.92,False
+2026-05-30,San Antonio,95.31,False
+2026-05-30,Huntsville,90.43,False
+2026-05-30,Lexington,95.63,False
+2026-05-30,Las Vegas,101.12,False
+2026-05-30,Birmingham,97.9,False
+2026-05-30,Chattanooga,94.12,False
+2026-05-30,Salt Lake City,102.04,False
+2026-05-30,Hampton Roads,107.66,False
+2026-05-30,Gainesville,101.34,False
+2026-05-30,Tallahassee,96.74,False
+2026-05-30,Miami/Fort Lauderdale,97.42,False
+2026-05-30,Gulf Shores,101.08,False
+2026-05-30,Louisville,87.63,False
+2026-05-30,Charlottesville,96.51,False
+2026-05-30,Panama City Beach,98.08,False
+2026-06-06,Dallas/Fort Worth,97.83,False
+2026-06-06,Atlanta,96.51,False
+2026-06-06,Austin,92.77,False
+2026-06-06,Charlotte,99.09,False
+2026-06-06,Orlando,99.23,False
+2026-06-06,Raleigh/Durham,95.18,False
+2026-06-06,Tampa,95.38,False
+2026-06-06,Nashville,97.15,False
+2026-06-06,Houston,95.67,False
+2026-06-06,Jacksonville,100.87,False
+2026-06-06,"Washington, DC",96.76,False
+2026-06-06,Phoenix,94.9,False
+2026-06-06,Charleston,99.84,False
+2026-06-06,Memphis,97.64,False
+2026-06-06,Greenville,96.23,False
+2026-06-06,Savannah,95.82,False
+2026-06-06,Denver,103.55,False
+2026-06-06,Kansas City,101.94,False
+2026-06-06,San Antonio,95.34,False
+2026-06-06,Huntsville,91.33,False
+2026-06-06,Lexington,97.76,False
+2026-06-06,Las Vegas,100.3,False
+2026-06-06,Birmingham,97.72,False
+2026-06-06,Chattanooga,91.59,False
+2026-06-06,Salt Lake City,102.1,False
+2026-06-06,Hampton Roads,105.86,False
+2026-06-06,Gainesville,112.0,False
+2026-06-06,Tallahassee,97.83,False
+2026-06-06,Miami/Fort Lauderdale,97.52,False
+2026-06-06,Gulf Shores,103.46,False
+2026-06-06,Louisville,92.41,False
+2026-06-06,Charlottesville,95.65,False
+2026-06-06,Panama City Beach,102.01,False
+2026-06-13,Dallas/Fort Worth,97.15,False
+2026-06-13,Atlanta,95.43,False
+2026-06-13,Austin,92.99,False
+2026-06-13,Charlotte,99.59,False
+2026-06-13,Orlando,98.37,False
+2026-06-13,Raleigh/Durham,94.33,False
+2026-06-13,Tampa,94.94,False
+2026-06-13,Nashville,96.57,False
+2026-06-13,Houston,95.43,False
+2026-06-13,Jacksonville,99.62,False
+2026-06-13,"Washington, DC",96.12,False
+2026-06-13,Phoenix,93.01,False
+2026-06-13,Charleston,99.65,False
+2026-06-13,Memphis,98.17,False
+2026-06-13,Greenville,94.43,False
+2026-06-13,Savannah,94.96,False
+2026-06-13,Denver,104.2,False
+2026-06-13,Kansas City,101.42,False
+2026-06-13,San Antonio,95.67,False
+2026-06-13,Huntsville,90.46,False
+2026-06-13,Lexington,97.54,False
+2026-06-13,Las Vegas,97.73,False
+2026-06-13,Birmingham,96.6,False
+2026-06-13,Chattanooga,90.66,False
+2026-06-13,Salt Lake City,102.47,False
+2026-06-13,Hampton Roads,105.9,False
+2026-06-13,Gainesville,106.58,False
+2026-06-13,Tallahassee,97.43,False
+2026-06-13,Miami/Fort Lauderdale,95.28,False
+2026-06-13,Gulf Shores,101.76,False
+2026-06-13,Louisville,95.02,False
+2026-06-13,Charlottesville,97.81,False
+2026-06-13,Panama City Beach,101.47,False
+2026-06-20,Dallas/Fort Worth,97.09,False
+2026-06-20,Atlanta,95.03,False
+2026-06-20,Austin,91.11,False
+2026-06-20,Charlotte,99.3,False
+2026-06-20,Orlando,96.87,False
+2026-06-20,Raleigh/Durham,94.64,False
+2026-06-20,Tampa,94.69,False
+2026-06-20,Nashville,97.25,False
+2026-06-20,Houston,94.87,False
+2026-06-20,Jacksonville,98.55,False
+2026-06-20,"Washington, DC",95.46,False
+2026-06-20,Phoenix,90.88,False
+2026-06-20,Charleston,99.14,False
+2026-06-20,Memphis,98.05,False
+2026-06-20,Greenville,94.88,False
+2026-06-20,Savannah,95.81,False
+2026-06-20,Denver,103.5,False
+2026-06-20,Kansas City,100.77,False
+2026-06-20,San Antonio,94.25,False
+2026-06-20,Huntsville,90.37,False
+2026-06-20,Lexington,98.59,False
+2026-06-20,Las Vegas,95.85,False
+2026-06-20,Birmingham,95.05,False
+2026-06-20,Chattanooga,89.39,False
+2026-06-20,Salt Lake City,102.74,False
+2026-06-20,Hampton Roads,106.01,False
+2026-06-20,Gainesville,107.3,False
+2026-06-20,Tallahassee,95.53,False
+2026-06-20,Miami/Fort Lauderdale,94.2,False
+2026-06-20,Gulf Shores,100.46,False
+2026-06-20,Louisville,95.19,False
+2026-06-20,Charlottesville,100.47,False
+2026-06-20,Panama City Beach,97.9,False
+2026-06-27,Dallas/Fort Worth,96.6225,True
+2026-06-27,Atlanta,94.6225,True
+2026-06-27,Austin,91.505,True
+2026-06-27,Charlotte,98.8925,True
+2026-06-27,Orlando,96.735,True
+2026-06-27,Raleigh/Durham,94.8525,True
+2026-06-27,Tampa,94.1575,True
+2026-06-27,Nashville,96.56,True
+2026-06-27,Houston,94.78,True
+2026-06-27,Jacksonville,97.47,True
+2026-06-27,"Washington, DC",95.4775,True
+2026-06-27,Phoenix,90.7075,True
+2026-06-27,Charleston,98.8625,True
+2026-06-27,Memphis,97.0,True
+2026-06-27,Greenville,94.2925,True
+2026-06-27,Savannah,94.7125,True
+2026-06-27,Denver,103.97,True
+2026-06-27,Kansas City,100.2775,True
+2026-06-27,San Antonio,93.7175,True
+2026-06-27,Huntsville,90.5775,True
+2026-06-27,Lexington,98.0525,True
+2026-06-27,Las Vegas,95.855,True
+2026-06-27,Birmingham,94.3425,True
+2026-06-27,Chattanooga,89.7225,True
+2026-06-27,Salt Lake City,102.675,True
+2026-06-27,Hampton Roads,106.5875,True
+2026-06-27,Gainesville,106.7375,True
+2026-06-27,Tallahassee,96.5125,True
+2026-06-27,Miami/Fort Lauderdale,93.6575,True
+2026-06-27,Gulf Shores,101.64,True
+2026-06-27,Louisville,94.8775,True
+2026-06-27,Charlottesville,98.4675,True
+2026-06-27,Panama City Beach,99.1275,True
+2026-07-04,Dallas/Fort Worth,96.155,True
+2026-07-04,Atlanta,94.215,True
+2026-07-04,Austin,91.9,True
+2026-07-04,Charlotte,98.485,True
+2026-07-04,Orlando,96.6,True
+2026-07-04,Raleigh/Durham,95.065,True
+2026-07-04,Tampa,93.625,True
+2026-07-04,Nashville,95.87,True
+2026-07-04,Houston,94.69,True
+2026-07-04,Jacksonville,96.39,True
+2026-07-04,"Washington, DC",95.495,True
+2026-07-04,Phoenix,90.535,True
+2026-07-04,Charleston,98.585,True
+2026-07-04,Memphis,95.95,True
+2026-07-04,Greenville,93.705,True
+2026-07-04,Savannah,93.615,True
+2026-07-04,Denver,104.44,True
+2026-07-04,Kansas City,99.785,True
+2026-07-04,San Antonio,93.185,True
+2026-07-04,Huntsville,90.785,True
+2026-07-04,Lexington,97.515,True
+2026-07-04,Las Vegas,95.86,True
+2026-07-04,Birmingham,93.635,True
+2026-07-04,Chattanooga,90.055,True
+2026-07-04,Salt Lake City,102.61,True
+2026-07-04,Hampton Roads,107.165,True
+2026-07-04,Gainesville,106.175,True
+2026-07-04,Tallahassee,97.495,True
+2026-07-04,Miami/Fort Lauderdale,93.115,True
+2026-07-04,Gulf Shores,102.82,True
+2026-07-04,Louisville,94.565,True
+2026-07-04,Charlottesville,96.465,True
+2026-07-04,Panama City Beach,100.355,True
+2026-07-11,Dallas/Fort Worth,95.6875,True
+2026-07-11,Atlanta,93.8075,True
+2026-07-11,Austin,92.295,True
+2026-07-11,Charlotte,98.0775,True
+2026-07-11,Orlando,96.465,True
+2026-07-11,Raleigh/Durham,95.2775,True
+2026-07-11,Tampa,93.0925,True
+2026-07-11,Nashville,95.18,True
+2026-07-11,Houston,94.6,True
+2026-07-11,Jacksonville,95.31,True
+2026-07-11,"Washington, DC",95.5125,True
+2026-07-11,Phoenix,90.3625,True
+2026-07-11,Charleston,98.3075,True
+2026-07-11,Memphis,94.9,True
+2026-07-11,Greenville,93.1175,True
+2026-07-11,Savannah,92.5175,True
+2026-07-11,Denver,104.91,True
+2026-07-11,Kansas City,99.2925,True
+2026-07-11,San Antonio,92.6525,True
+2026-07-11,Huntsville,90.9925,True
+2026-07-11,Lexington,96.9775,True
+2026-07-11,Las Vegas,95.865,True
+2026-07-11,Birmingham,92.9275,True
+2026-07-11,Chattanooga,90.3875,True
+2026-07-11,Salt Lake City,102.545,True
+2026-07-11,Hampton Roads,107.7425,True
+2026-07-11,Gainesville,105.6125,True
+2026-07-11,Tallahassee,98.4775,True
+2026-07-11,Miami/Fort Lauderdale,92.5725,True
+2026-07-11,Gulf Shores,104.0,True
+2026-07-11,Louisville,94.2525,True
+2026-07-11,Charlottesville,94.4625,True
+2026-07-11,Panama City Beach,101.5825,True
+2026-07-18,Dallas/Fort Worth,95.22,False
+2026-07-18,Atlanta,93.4,False
+2026-07-18,Austin,92.69,False
+2026-07-18,Charlotte,97.67,False
+2026-07-18,Orlando,96.33,False
+2026-07-18,Raleigh/Durham,95.49,False
+2026-07-18,Tampa,92.56,False
+2026-07-18,Nashville,94.49,False
+2026-07-18,Houston,94.51,False
+2026-07-18,Jacksonville,94.23,False
+2026-07-18,"Washington, DC",95.53,False
+2026-07-18,Phoenix,90.19,False
+2026-07-18,Charleston,98.03,False
+2026-07-18,Memphis,93.85,False
+2026-07-18,Greenville,92.53,False
+2026-07-18,Savannah,91.42,False
+2026-07-18,Denver,105.38,False
+2026-07-18,Kansas City,98.8,False
+2026-07-18,San Antonio,92.12,False
+2026-07-18,Huntsville,91.2,False
+2026-07-18,Lexington,96.44,False
+2026-07-18,Las Vegas,95.87,False
+2026-07-18,Birmingham,92.22,False
+2026-07-18,Chattanooga,90.72,False
+2026-07-18,Salt Lake City,102.48,False
+2026-07-18,Hampton Roads,108.32,False
+2026-07-18,Gainesville,105.05,False
+2026-07-18,Tallahassee,99.46,False
+2026-07-18,Miami/Fort Lauderdale,92.03,False
+2026-07-18,Gulf Shores,105.18,False
+2026-07-18,Louisville,93.94,False
+2026-07-18,Charlottesville,92.46,False
+2026-07-18,Panama City Beach,102.81,False
+2026-07-25,Dallas/Fort Worth,95.055,True
+2026-07-25,Atlanta,93.25,True
+2026-07-25,Austin,91.7,True
+2026-07-25,Charlotte,97.47,True
+2026-07-25,Orlando,95.96,True
+2026-07-25,Raleigh/Durham,94.885,True
+2026-07-25,Tampa,92.245,True
+2026-07-25,Nashville,94.79,True
+2026-07-25,Houston,95.015,True
+2026-07-25,Jacksonville,94.525,True
+2026-07-25,"Washington, DC",95.185,True
+2026-07-25,Phoenix,91.06,True
+2026-07-25,Charleston,97.38,True
+2026-07-25,Memphis,94.445,True
+2026-07-25,Greenville,92.04,True
+2026-07-25,Savannah,90.92,True
+2026-07-25,Denver,104.15,True
+2026-07-25,Kansas City,98.425,True
+2026-07-25,San Antonio,91.76,True
+2026-07-25,Huntsville,91.755,True
+2026-07-25,Lexington,95.925,True
+2026-07-25,Las Vegas,95.0,True
+2026-07-25,Birmingham,92.655,True
+2026-07-25,Chattanooga,90.57,True
+2026-07-25,Salt Lake City,101.51,True
+2026-07-25,Hampton Roads,108.825,True
+2026-07-25,Gainesville,102.58,True
+2026-07-25,Tallahassee,98.485,True
+2026-07-25,Miami/Fort Lauderdale,93.47,True
+2026-07-25,Gulf Shores,107.21,True
+2026-07-25,Louisville,92.22,True
+2026-07-25,Charlottesville,90.5,True
+2026-07-25,Panama City Beach,102.375,True
+2026-08-01,Dallas/Fort Worth,94.89,False
+2026-08-01,Atlanta,93.1,False
+2026-08-01,Austin,90.71,False
+2026-08-01,Charlotte,97.27,False
+2026-08-01,Orlando,95.59,False
+2026-08-01,Raleigh/Durham,94.28,False
+2026-08-01,Tampa,91.93,False
+2026-08-01,Nashville,95.09,False
+2026-08-01,Houston,95.52,False
+2026-08-01,Jacksonville,94.82,False
+2026-08-01,"Washington, DC",94.84,False
+2026-08-01,Phoenix,91.93,False
+2026-08-01,Charleston,96.73,False
+2026-08-01,Memphis,95.04,False
+2026-08-01,Greenville,91.55,False
+2026-08-01,Savannah,90.42,False
+2026-08-01,Denver,102.92,False
+2026-08-01,Kansas City,98.05,False
+2026-08-01,San Antonio,91.4,False
+2026-08-01,Huntsville,92.31,False
+2026-08-01,Lexington,95.41,False
+2026-08-01,Las Vegas,94.13,False
+2026-08-01,Birmingham,93.09,False
+2026-08-01,Chattanooga,90.42,False
+2026-08-01,Salt Lake City,100.54,False
+2026-08-01,Hampton Roads,109.33,False
+2026-08-01,Gainesville,100.11,False
+2026-08-01,Tallahassee,97.51,False
+2026-08-01,Miami/Fort Lauderdale,94.91,False
+2026-08-01,Gulf Shores,109.24,False
+2026-08-01,Louisville,90.5,False
+2026-08-01,Charlottesville,88.54,False
+2026-08-01,Panama City Beach,101.94,False
+2026-08-08,Dallas/Fort Worth,94.43,False
+2026-08-08,Atlanta,92.82,False
+2026-08-08,Austin,89.76,False
+2026-08-08,Charlotte,96.88,False
+2026-08-08,Orlando,94.71,False
+2026-08-08,Raleigh/Durham,93.94,False
+2026-08-08,Tampa,91.32,False
+2026-08-08,Nashville,95.29,False
+2026-08-08,Houston,94.53,False
+2026-08-08,Jacksonville,95.62,False
+2026-08-08,"Washington, DC",94.72,False
+2026-08-08,Phoenix,90.85,False
+2026-08-08,Charleston,96.29,False
+2026-08-08,Memphis,95.16,False
+2026-08-08,Greenville,90.84,False
+2026-08-08,Savannah,89.4,False
+2026-08-08,Denver,101.75,False
+2026-08-08,Kansas City,97.92,False
+2026-08-08,San Antonio,89.95,False
+2026-08-08,Huntsville,94.68,False
+2026-08-08,Lexington,95.84,False
+2026-08-08,Las Vegas,93.04,False
+2026-08-08,Birmingham,93.94,False
+2026-08-08,Chattanooga,90.4,False
+2026-08-08,Salt Lake City,99.69,False
+2026-08-08,Hampton Roads,108.52,False
+2026-08-08,Gainesville,101.73,False
+2026-08-08,Tallahassee,96.37,False
+2026-08-08,Miami/Fort Lauderdale,93.35,False
+2026-08-08,Gulf Shores,112.15,False
+2026-08-08,Louisville,89.42,False
+2026-08-08,Charlottesville,90.0,False
+2026-08-08,Panama City Beach,101.41,False
+2026-08-15,Dallas/Fort Worth,94.14,False
+2026-08-15,Atlanta,91.78,False
+2026-08-15,Austin,89.48,False
+2026-08-15,Charlotte,95.48,False
+2026-08-15,Orlando,94.08,False
+2026-08-15,Raleigh/Durham,93.79,False
+2026-08-15,Tampa,91.54,False
+2026-08-15,Nashville,94.04,False
+2026-08-15,Houston,93.05,False
+2026-08-15,Jacksonville,95.18,False
+2026-08-15,"Washington, DC",93.01,False
+2026-08-15,Phoenix,89.92,False
+2026-08-15,Charleston,95.93,False
+2026-08-15,Memphis,95.19,False
+2026-08-15,Greenville,89.79,False
+2026-08-15,Savannah,88.95,False
+2026-08-15,Denver,98.85,False
+2026-08-15,Kansas City,96.79,False
+2026-08-15,San Antonio,88.36,False
+2026-08-15,Huntsville,91.86,False
+2026-08-15,Lexington,93.34,False
+2026-08-15,Las Vegas,93.97,False
+2026-08-15,Birmingham,91.6,False
+2026-08-15,Chattanooga,89.45,False
+2026-08-15,Salt Lake City,99.34,False
+2026-08-15,Hampton Roads,107.31,False
+2026-08-15,Gainesville,100.31,False
+2026-08-15,Tallahassee,97.0,False
+2026-08-15,Miami/Fort Lauderdale,91.68,False
+2026-08-15,Gulf Shores,111.74,False
+2026-08-15,Louisville,86.4,False
+2026-08-15,Charlottesville,89.62,False
+2026-08-15,Panama City Beach,102.28,False
+2026-08-22,Dallas/Fort Worth,94.15,False
+2026-08-22,Atlanta,91.75,False
+2026-08-22,Austin,89.5,False
+2026-08-22,Charlotte,93.9,False
+2026-08-22,Orlando,93.02,False
+2026-08-22,Raleigh/Durham,92.85,False
+2026-08-22,Tampa,91.26,False
+2026-08-22,Nashville,92.51,False
+2026-08-22,Houston,92.63,False
+2026-08-22,Jacksonville,94.75,False
+2026-08-22,"Washington, DC",91.9,False
+2026-08-22,Phoenix,89.44,False
+2026-08-22,Charleston,94.93,False
+2026-08-22,Memphis,97.69,False
+2026-08-22,Greenville,88.78,False
+2026-08-22,Savannah,88.07,False
+2026-08-22,Denver,98.37,False
+2026-08-22,Kansas City,95.33,False
+2026-08-22,San Antonio,86.42,False
+2026-08-22,Huntsville,90.96,False
+2026-08-22,Lexington,92.98,False
+2026-08-22,Las Vegas,92.2,False
+2026-08-22,Birmingham,90.54,False
+2026-08-22,Chattanooga,88.51,False
+2026-08-22,Salt Lake City,99.59,False
+2026-08-22,Hampton Roads,107.04,False
+2026-08-22,Gainesville,103.45,False
+2026-08-22,Tallahassee,95.74,False
+2026-08-22,Miami/Fort Lauderdale,93.3,False
+2026-08-22,Gulf Shores,113.46,False
+2026-08-22,Louisville,84.39,False
+2026-08-22,Charlottesville,92.68,False
+2026-08-22,Panama City Beach,103.81,False
+2026-08-29,Dallas/Fort Worth,93.81,False
+2026-08-29,Atlanta,92.21,False
+2026-08-29,Austin,87.58,False
+2026-08-29,Charlotte,93.33,False
+2026-08-29,Orlando,91.73,False
+2026-08-29,Raleigh/Durham,92.22,False
+2026-08-29,Tampa,90.69,False
+2026-08-29,Nashville,89.33,False
+2026-08-29,Houston,91.26,False
+2026-08-29,Jacksonville,94.14,False
+2026-08-29,"Washington, DC",92.99,False
+2026-08-29,Phoenix,89.36,False
+2026-08-29,Charleston,94.33,False
+2026-08-29,Memphis,95.33,False
+2026-08-29,Greenville,87.07,False
+2026-08-29,Richmond,100.0,False
+2026-08-29,Savannah,87.52,False
+2026-08-29,Denver,99.78,False
+2026-08-29,Kansas City,93.45,False
+2026-08-29,San Antonio,88.21,False
+2026-08-29,Huntsville,89.48,False
+2026-08-29,Lexington,93.35,False
+2026-08-29,Las Vegas,91.14,False
+2026-08-29,Birmingham,91.43,False
+2026-08-29,Chattanooga,86.19,False
+2026-08-29,Salt Lake City,98.03,False
+2026-08-29,Hampton Roads,107.85,False
+2026-08-29,Gainesville,103.53,False
+2026-08-29,Tallahassee,94.14,False
+2026-08-29,Miami/Fort Lauderdale,95.46,False
+2026-08-29,Gulf Shores,110.62,False
+2026-08-29,Louisville,84.45,False
+2026-08-29,Charlottesville,94.27,False
+2026-08-29,Panama City Beach,100.81,False
+2026-09-05,Dallas/Fort Worth,93.74,False
+2026-09-05,Atlanta,91.68,False
+2026-09-05,Austin,86.99,False
+2026-09-05,Charlotte,92.91,False
+2026-09-05,Orlando,91.26,False
+2026-09-05,Raleigh/Durham,91.91,False
+2026-09-05,Tampa,90.58,False
+2026-09-05,Nashville,89.47,False
+2026-09-05,Houston,90.61,False
+2026-09-05,Jacksonville,93.87,False
+2026-09-05,"Washington, DC",92.88,False
+2026-09-05,Phoenix,89.44,False
+2026-09-05,Charleston,94.24,False
+2026-09-05,Memphis,95.13,False
+2026-09-05,Greenville,87.28,False
+2026-09-05,Richmond,100.03,False
+2026-09-05,Savannah,87.0,False
+2026-09-05,Denver,99.88,False
+2026-09-05,Kansas City,94.3,False
+2026-09-05,San Antonio,88.26,False
+2026-09-05,Huntsville,90.38,False
+2026-09-05,Lexington,92.34,False
+2026-09-05,Las Vegas,90.47,False
+2026-09-05,Birmingham,91.9,False
+2026-09-05,Chattanooga,85.75,False
+2026-09-05,Salt Lake City,98.04,False
+2026-09-05,Hampton Roads,108.07,False
+2026-09-05,Gainesville,101.48,False
+2026-09-05,Tallahassee,93.51,False
+2026-09-05,Miami/Fort Lauderdale,94.53,False
+2026-09-05,Gulf Shores,112.45,False
+2026-09-05,Louisville,88.67,False
+2026-09-05,Charlottesville,92.87,False
+2026-09-05,Panama City Beach,100.57,False

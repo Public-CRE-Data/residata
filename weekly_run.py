@@ -16,7 +16,7 @@
 #   5b. Detailed per-market WoW audit (wow_audit.py)
 #   5c. Comprehensive data integrity audit (data_integrity_audit.py)
 #   6. Build equity research charts workbook (build_charts.py)
-#   7. Commit regenerated summary_history (git push final)
+#   7. Commit regenerated summary_history + data/derived analysis CSVs
 #
 # Logs to: logs/weekly_YYYY-MM-DD.log
 
@@ -398,12 +398,20 @@ def final_push_summary_history():
             logger.info(f"  stderr: {result.stderr.strip()[:200]}")
         return result
 
-    git("add", "data/summary/summary_history.csv")
-    status = git("status", "--porcelain", "data/summary/summary_history.csv")
+    # data/derived holds the CSVs behind Same_Prop_Trends, Charts_Concessions,
+    # the per-REIT <TICKER>_Markets sheets and Market_Comparison. They are
+    # written by build_excel.py in STEP 4, i.e. AFTER the STEP 3 push, so they
+    # are committed here rather than there.
+    targets = ["data/summary/summary_history.csv", "data/derived/"]
+    git("add", *targets)
+    status = git("status", "--porcelain", *targets)
     if not status.stdout.strip():
-        logger.info("  summary_history.csv unchanged — nothing to push.")
+        logger.info("  summary_history + derived unchanged — nothing to push.")
         return
-    git("commit", "-m", f"Weekly summary_history regen {today}")
+    n_derived = len([ln for ln in status.stdout.splitlines()
+                     if "data/derived/" in ln])
+    logger.info(f"  committing summary_history + {n_derived} derived CSV change(s)")
+    git("commit", "-m", f"Weekly summary_history + derived analysis {today}")
     result = git("push")
     if "-> main" in (result.stderr + result.stdout):
         logger.info("  summary_history pushed.")
