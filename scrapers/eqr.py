@@ -347,9 +347,19 @@ def scrape_eqr(
     errors:   list[str]  = []
 
     # Prefer system Chrome (harder for CF to fingerprint as automation)
+    # System Chrome is preferred over Playwright's bundled Chromium because
+    # it is harder for Cloudflare to fingerprint as automation. Cover the
+    # platforms this runs on; the code falls back to bundled Chromium if
+    # none exist, so a missing entry degrades rather than crashes.
     _CHROME_PATHS = [
+        # Windows
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        # macOS
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        # Linux (GitHub Actions runners)
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
     ]
     _chrome_exe = next((p for p in _CHROME_PATHS if os.path.exists(p)), None)
     _launch_kwargs: dict = dict(
