@@ -1,0 +1,13 @@
+# Line-ending policy. This repo is developed on Windows (core.autocrlf=true)
+# and deployed on macOS/Linux. Without this, shell scripts get committed with
+# CRLF and fail on the target with "bad interpreter: /bin/bash^M".
+*.sh    text eol=lf
+*.py    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.md    text eol=lf
+*.csv   text eol=lf
+*.bat   text eol=crlf
+*.xlsx  binary
+*.png   binary
+*.zip   binary
