@@ -6,6 +6,6 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # launchd runs with a minimal PATH; make Homebrew Python resolvable.
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="/opt/homebrew/opt/python@3.11/libexec/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 exec python3 weekly_run.py
