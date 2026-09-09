@@ -248,14 +248,14 @@ date,series,value,interpolated
 2026-08-29,Denver,110.12,False
 2026-08-29,Salinas/Monterey,99.91,False
 2026-08-29,Other,93.11,False
-2026-09-05,Seattle,95.37,False
-2026-09-05,Los Angeles,93.41,False
-2026-09-05,San Jose,104.27,False
-2026-09-05,San Francisco-East Bay,106.39,False
-2026-09-05,Orange County,101.33,False
-2026-09-05,San Diego,99.28,False
-2026-09-05,San Francisco,103.8,False
-2026-09-05,Santa Barbara,103.36,False
+2026-09-05,Seattle,94.46,False
+2026-09-05,Los Angeles,92.99,False
+2026-09-05,San Jose,103.9,False
+2026-09-05,San Francisco-East Bay,105.93,False
+2026-09-05,Orange County,102.1,False
+2026-09-05,San Diego,99.14,False
+2026-09-05,San Francisco,104.54,False
+2026-09-05,Santa Barbara,103.07,False
 2026-09-05,Denver,109.97,False
-2026-09-05,Salinas/Monterey,99.91,False
-2026-09-05,Other,93.56,False
+2026-09-05,Salinas/Monterey,99.17,False
+2026-09-05,Other,91.9,False

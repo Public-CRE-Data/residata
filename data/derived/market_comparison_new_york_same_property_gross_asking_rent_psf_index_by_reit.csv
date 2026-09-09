@@ -67,6 +67,6 @@ date,series,value,interpolated
 2026-08-29,AVB,93.49,False
 2026-08-29,EQR,95.41,False
 2026-08-29,UDR,97.32,False
-2026-09-05,AVB,93.19,False
-2026-09-05,EQR,95.2,False
-2026-09-05,UDR,97.34,False
+2026-09-05,AVB,93.0,False
+2026-09-05,EQR,95.31,False
+2026-09-05,UDR,97.08,False
