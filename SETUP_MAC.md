@@ -69,12 +69,27 @@ Copy these from the old machine by hand (AirDrop, USB, cloud drive):
 
 | What | Why not in git | Needed? |
 |---|---|---|
-| `render_charts.py`, `embed_charts.py` | contain machine-specific absolute paths | **Yes** — generate the hero-chart PNGs. Fix the paths after copying. |
-| `build_workbook.py`, `build_workbook_v2.py`, `check_other.py` | same | Optional legacy helpers |
+| `render_charts.py`, `embed_charts.py` | never committed | **Yes** — generate the hero-chart PNGs. Already portable (`Path(__file__)`); no edits needed. |
+| `build_workbook.py`, `build_workbook_v2.py`, `check_other.py` | contain machine-specific absolute paths | Optional legacy helpers. Replace the hardcoded `C:/Users/...` root with `os.path.dirname(os.path.abspath(__file__))` after copying. |
 | `REIT_Rental_Analysis_*.xlsx`, `output/*.xlsx` | `*.xlsx` is gitignored | Optional. Historical dated snapshots; the *current* workbook regenerates from data (step 6). |
 | `output/*.png` | build artefacts | Optional; regenerate with `render_charts.py` |
 | `residata_cache/` | ~300 MB cache | No — regenerates |
 | `logs/` | gitignored | No |
+
+### If `~/reit-rental-scraper` already exists as a plain file copy
+
+A folder copied from the old machine (no `.git` inside) blocks `git clone`.
+Keep the copy — it holds gitignored snapshots and caches — and give it a
+repository instead:
+
+```bash
+git clone https://github.com/Public-CRE-Data/residata.git /tmp/residata-clone
+mv /tmp/residata-clone/.git ~/reit-rental-scraper/.git && rm -rf /tmp/residata-clone
+cd ~/reit-rental-scraper
+git status          # review before discarding: the copy may hold uncommitted work
+```
+
+Then do step 3 before any commit.
 
 ## 8. Claude Code memory (if you use it)
 
