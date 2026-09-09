@@ -8,3 +8,4 @@ pyyaml>=6.0
 python-dateutil>=2.8
 playwright>=1.40.0
 playwright-stealth>=2.0.0
+matplotlib>=3.8

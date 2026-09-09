@@ -19,6 +19,7 @@ env/
 # ── Data files — CSVs tracked (private repo); Excel outputs excluded ──────────
 output/*.xlsx
 output/*.csv
+output/*.png
 *.xlsx
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
@@ -42,3 +43,6 @@ Thumbs.db
 # ── Playwright ────────────────────────────────────────────────────────────────
 playwright-report/
 test-results/
+
+# ── Local download cache (~300 MB, regenerates; see SETUP_MAC.md §7) ─────────
+residata_cache/
