@@ -22,7 +22,7 @@ date,series,value,interpolated
 2026-04-25,MAA,98.76,False
 2026-05-02,AMH,99.45,False
 2026-05-02,CPT,97.39,False
-2026-05-02,EQR,95.79,False
+2026-05-02,EQR,95.78,False
 2026-05-02,INVH,101.55,False
 2026-05-02,MAA,97.72,False
 2026-05-09,AMH,98.96,False
@@ -37,7 +37,7 @@ date,series,value,interpolated
 2026-05-16,MAA,99.28,False
 2026-05-23,AMH,98.54,False
 2026-05-23,CPT,97.41,False
-2026-05-23,EQR,93.87,False
+2026-05-23,EQR,93.86,False
 2026-05-23,INVH,101.79,False
 2026-05-23,MAA,97.49,False
 2026-05-30,AMH,98.34,False
@@ -115,3 +115,7 @@ date,series,value,interpolated
 2026-09-05,EQR,88.76,False
 2026-09-05,INVH,96.51,False
 2026-09-05,MAA,91.28,False
+2026-09-12,AMH,92.92,False
+2026-09-12,CPT,93.22,False
+2026-09-12,INVH,96.17,False
+2026-09-12,MAA,90.3,False

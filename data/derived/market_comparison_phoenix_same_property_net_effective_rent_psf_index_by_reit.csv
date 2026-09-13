@@ -92,3 +92,7 @@ date,series,value,interpolated
 2026-09-05,CPT,90.61,False
 2026-09-05,INVH,89.36,False
 2026-09-05,MAA,87.91,False
+2026-09-12,AMH,89.51,False
+2026-09-12,CPT,90.13,False
+2026-09-12,INVH,88.88,False
+2026-09-12,MAA,87.95,False

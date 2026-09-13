@@ -407,3 +407,20 @@ date,series,value,interpolated
 2026-09-05,Raleigh/Durham,90.28,False
 2026-09-05,San Francisco,95.29,False
 2026-09-05,San Diego,94.87,False
+2026-09-12,New York,92.77,False
+2026-09-12,Los Angeles,87.24,False
+2026-09-12,"Washington, DC",87.94,False
+2026-09-12,Boston,88.47,False
+2026-09-12,Charlotte,94.02,False
+2026-09-12,Baltimore,93.69,False
+2026-09-12,Seattle,86.82,False
+2026-09-12,Denver,87.39,False
+2026-09-12,San Jose,95.75,False
+2026-09-12,San Francisco-East Bay,94.55,False
+2026-09-12,Orange County,92.39,False
+2026-09-12,Dallas/Fort Worth,91.25,False
+2026-09-12,Austin,99.91,False
+2026-09-12,Miami/Fort Lauderdale,89.21,False
+2026-09-12,Raleigh/Durham,90.19,False
+2026-09-12,San Francisco,95.22,False
+2026-09-12,San Diego,94.03,False
