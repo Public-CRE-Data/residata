@@ -47,6 +47,20 @@ METHODOLOGY_BREAKS = {
 }
 
 
+# Scrapes known to be partial, excluded from the panel entirely. A partial
+# file is worse than a missing one: its few surviving communities are not a
+# sample of the portfolio (EQR 2026-09-12 kept 8 NYC towers, avg rent $6,554
+# vs ~$3,240), so it would publish a false level. Excluding it turns the week
+# into a gap, which compute_history bridges and _smooth_skipped_weeks fills.
+# Keys are (reit, scrape_date) as written in the raw file, not the week anchor.
+PARTIAL_SCRAPES = {
+    # URL bug: cross-listed AvalonBay communities broke navigation for the
+    # whole run (8/528 properties). Fixed in scrapers/eqr.py.
+    ("EQR", "2026-09-09"),
+    ("EQR", "2026-09-12"),
+}
+
+
 def _straddles_methodology_break(reit, prev_d, curr_d):
     """True if this pair spans a change in how the REIT's rent was measured."""
     brk = METHODOLOGY_BREAKS.get(reit)
@@ -75,9 +89,26 @@ def load_all_raw() -> pd.DataFrame:
             print(f"  [skip] {f.name}: {e}")
     df = pd.concat(parts, ignore_index=True)
     df["scrape_date"] = pd.to_datetime(df["scrape_date"])
+    # Must happen before dedupe: a partial mid-week file shares a week anchor
+    # with the full Saturday scrape and would otherwise overwrite its units.
+    if PARTIAL_SCRAPES:
+        key = list(zip(df["reit"], df["scrape_date"].dt.strftime("%Y-%m-%d")))
+        drop = pd.Series([k in PARTIAL_SCRAPES for k in key], index=df.index)
+        if drop.any():
+            for (reit, d), n in (df[drop].groupby(["reit", df.loc[drop, "scrape_date"].dt.strftime("%Y-%m-%d")])
+                                 .size().items()):
+                print(f"  [PARTIAL] excluding {reit} {d}: {n:,} rows")
+            df = df[~drop]
     df["week"] = df["scrape_date"].apply(saturday_anchor)
     # Dedupe: keep last observation per (reit, unit_id, week)
-    df = (df.sort_values("scrape_date")
+    # kind="stable" is load-bearing. ~26k rows are same-unit duplicates on the
+    # same date (split part1/part2 files, re-listings), 4.4k with conflicting
+    # rents. The default quicksort breaks those ties differently whenever the
+    # array changes, so adding one week or excluding one REIT's file silently
+    # revised thousands of historical cells for every other REIT. A stable
+    # sort makes the winner the later file in name order, independent of
+    # what else is in the panel.
+    df = (df.sort_values("scrape_date", kind="stable")
             .groupby(["reit", "unit_id", "week"], as_index=False)
             .last())
     df["scrape_date"] = df["week"]
@@ -524,6 +555,110 @@ def compute_history(panel: pd.DataFrame) -> pd.DataFrame:
     return hist
 
 
+LEVEL_COLS = ["listing_count", "avg_rent", "median_rent", "avg_sqft", "rent_per_sqft",
+              "concession_rate", "avg_concession_value", "avg_rent_psf", "median_rent_psf",
+              "avg_eff_rent", "avg_eff_rent_psf", "sp_concession_rate_curr"]
+# (level-curr, level-prev, weekly change) triples chained by the indices
+SP_TRIPLES = [
+    ("sp_avg_rent_curr", "sp_avg_rent_prev", "sp_wow_pct"),
+    ("sp_avg_rent_psf_curr", "sp_avg_rent_psf_prev", "sp_wow_pct_psf"),
+    ("sp_avg_eff_rent_curr", "sp_avg_eff_rent_prev", "sp_wow_pct_eff"),
+    ("sp_avg_eff_rent_psf_curr", "sp_avg_eff_rent_psf_prev", "sp_wow_pct_eff_psf"),
+]
+
+
+def _smooth_skipped_weeks(hist: pd.DataFrame) -> pd.DataFrame:
+    """Fill weeks a REIT is missing between two observed weeks.
+
+    Bridging already measures the change across the gap (e.g. 09-05 -> 09-19)
+    and books it all on the week after the gap, so the index jumps there and
+    the skipped week has no point. This spreads it evenly instead:
+
+      * the bridged same-property change r over n weekly steps becomes a
+        constant weekly rate g = (1+r)^(1/n) - 1 on every step, so the
+        chain-linked index path is smooth and ends at exactly the same level;
+      * cross-sectional levels (avg rent, counts, concession rate) are
+        linearly interpolated per (macro_market, beds).
+
+    Scope: only gaps made by excluding PARTIAL_SCRAPES are filled. Organic
+    empty weeks (e.g. AMH/INVH 2026-06-20) are published history and are left
+    as they were; smoothing them would be a separate, deliberate decision.
+
+    Only buckets present on both sides are filled. Every filled or rescaled
+    row carries an `imputation` label so no one mistakes it for a scrape:
+    'interpolated' for the synthetic week, 'rate_split' for the week whose
+    bridged change was divided. A REIT's trailing gap (no later week yet) is
+    left empty rather than extrapolated.
+    """
+    hist = hist.copy()
+    if "imputation" not in hist.columns:
+        hist["imputation"] = None
+    hist["scrape_date"] = pd.to_datetime(hist["scrape_date"])
+    dates = sorted(hist["scrape_date"].unique())
+    keys = ["macro_market", "beds"]
+    new_rows = []
+    partial_weeks = {(r, saturday_anchor(pd.Timestamp(d))) for r, d in PARTIAL_SCRAPES}
+
+    for reit in hist["reit"].unique():
+        have = set(hist.loc[hist["reit"] == reit, "scrape_date"])
+        observed = [d for d in dates if d in have]
+        for a, b in zip(observed, observed[1:]):
+            missing = [d for d in dates if a < d < b]
+            if not missing or not all((reit, pd.Timestamp(m)) in partial_weeks
+                                      for m in missing):
+                continue
+            n = len(missing) + 1
+            A = hist[(hist.reit == reit) & (hist.scrape_date == a)].set_index(keys)
+            b_mask = (hist.reit == reit) & (hist.scrape_date == b)
+            B = hist[b_mask].set_index(keys)
+            common = A.index.intersection(B.index)
+            print(f"  [SMOOTH] {reit}: {len(missing)} skipped week(s) between "
+                  f"{pd.Timestamp(a).date()} and {pd.Timestamp(b).date()} "
+                  f"-> {len(common)} buckets filled")
+
+            # Weekly rate implied by each bucket's bridged change.
+            g = {}
+            for curr_c, prev_c, pct_c in SP_TRIPLES:
+                r = pd.to_numeric(B.loc[common, pct_c], errors="coerce")
+                g[pct_c] = (1 + r) ** (1 / n) - 1
+
+            for step, m in enumerate(missing, 1):
+                w = step / n
+                row = pd.DataFrame(index=common)
+                row["scrape_date"] = m
+                row["reit"] = reit
+                for c in LEVEL_COLS:
+                    if c in A.columns:
+                        va = pd.to_numeric(A.loc[common, c], errors="coerce")
+                        vb = pd.to_numeric(B.loc[common, c], errors="coerce")
+                        row[c] = va + (vb - va) * w
+                row["sp_count"] = B.loc[common, "sp_count"]
+                for curr_c, prev_c, pct_c in SP_TRIPLES:
+                    base = pd.to_numeric(B.loc[common, prev_c], errors="coerce")
+                    row[prev_c] = base * (1 + g[pct_c]) ** (step - 1)
+                    row[curr_c] = base * (1 + g[pct_c]) ** step
+                    row[pct_c] = g[pct_c]
+                row["imputation"] = "interpolated"
+                new_rows.append(row.reset_index())
+
+            # Rescale the post-gap week to its share of the change. Its
+            # sp_*_curr is a real observation and is left untouched.
+            idx = hist.index[b_mask & hist.set_index(keys).index.isin(common)]
+            for curr_c, prev_c, pct_c in SP_TRIPLES:
+                gi = g[pct_c].reindex(hist.loc[idx].set_index(keys).index).to_numpy()
+                ok = ~pd.isna(gi)
+                base = pd.to_numeric(hist.loc[idx, prev_c], errors="coerce").to_numpy()
+                hist.loc[idx[ok], prev_c] = base[ok] * (1 + gi[ok]) ** (n - 1)
+                hist.loc[idx[ok], pct_c] = gi[ok]
+            hist.loc[idx, "imputation"] = "rate_split"
+
+    if new_rows:
+        hist = pd.concat([hist] + new_rows, ignore_index=True)
+        hist = hist.sort_values(["scrape_date", "reit", "macro_market", "beds"],
+                                kind="stable").reset_index(drop=True)
+    return hist
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry", action="store_true", help="Print coverage only, don't write")
@@ -539,6 +674,9 @@ def main():
 
     print("[Rebuild] Computing week-by-week same-property history...")
     hist = compute_history(panel)
+
+    print("[Rebuild] Smoothing weeks skipped by partial scrapes...")
+    hist = _smooth_skipped_weeks(hist)
 
     print(f"[Rebuild] Output: {len(hist):,} rows across {hist['scrape_date'].nunique()} weeks.")
     print()
