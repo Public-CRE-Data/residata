@@ -4,14 +4,14 @@ date,series,value,interpolated
 2026-03-28,Dallas/Fort Worth,100.0,False
 2026-03-28,Boston,100.0,False
 2026-03-28,Orange County,100.0,False
-2026-03-28,San Francisco-East Bay,100.0,False
 2026-03-28,Tampa,100.0,False
+2026-03-28,San Francisco-East Bay,100.0,False
 2026-03-28,Orlando,100.0,False
 2026-03-28,Seattle,100.0,False
 2026-03-28,New York,100.0,False
 2026-03-28,Philadelphia,100.0,False
-2026-03-28,Austin,100.0,False
 2026-03-28,Baltimore,100.0,False
+2026-03-28,Austin,100.0,False
 2026-03-28,Salinas/Monterey,100.0,False
 2026-03-28,Nashville,100.0,False
 2026-03-28,Los Angeles,100.0,False
@@ -24,14 +24,14 @@ date,series,value,interpolated
 2026-04-04,Dallas/Fort Worth,98.95,False
 2026-04-04,Boston,99.86,False
 2026-04-04,Orange County,99.64,False
-2026-04-04,San Francisco-East Bay,99.8,False
 2026-04-04,Tampa,97.21,False
+2026-04-04,San Francisco-East Bay,99.8,False
 2026-04-04,Orlando,98.75,False
 2026-04-04,Seattle,99.52,False
 2026-04-04,New York,99.52,False
 2026-04-04,Philadelphia,99.5,False
-2026-04-04,Austin,99.36,False
 2026-04-04,Baltimore,99.75,False
+2026-04-04,Austin,99.36,False
 2026-04-04,Salinas/Monterey,97.54,False
 2026-04-04,Nashville,99.89,False
 2026-04-04,Los Angeles,98.76,False
@@ -44,14 +44,14 @@ date,series,value,interpolated
 2026-04-11,Dallas/Fort Worth,97.68,False
 2026-04-11,Boston,99.31,False
 2026-04-11,Orange County,99.85,False
-2026-04-11,San Francisco-East Bay,100.28,False
 2026-04-11,Tampa,95.77,False
+2026-04-11,San Francisco-East Bay,100.28,False
 2026-04-11,Orlando,97.62,False
 2026-04-11,Seattle,98.85,False
 2026-04-11,New York,99.22,False
 2026-04-11,Philadelphia,99.04,False
-2026-04-11,Austin,98.56,False
 2026-04-11,Baltimore,99.9,False
+2026-04-11,Austin,98.56,False
 2026-04-11,Salinas/Monterey,96.38,False
 2026-04-11,Nashville,99.25,False
 2026-04-11,Los Angeles,97.92,False
@@ -64,14 +64,14 @@ date,series,value,interpolated
 2026-04-18,Dallas/Fort Worth,96.78,False
 2026-04-18,Boston,99.09,False
 2026-04-18,Orange County,99.05,False
-2026-04-18,San Francisco-East Bay,100.47,False
 2026-04-18,Tampa,95.04,False
+2026-04-18,San Francisco-East Bay,100.47,False
 2026-04-18,Orlando,96.74,False
 2026-04-18,Seattle,100.27,False
 2026-04-18,New York,98.25,False
 2026-04-18,Philadelphia,100.0,False
-2026-04-18,Austin,97.88,False
 2026-04-18,Baltimore,99.39,False
+2026-04-18,Austin,97.88,False
 2026-04-18,Salinas/Monterey,95.4,False
 2026-04-18,Nashville,98.36,False
 2026-04-18,Los Angeles,97.86,False
@@ -84,14 +84,14 @@ date,series,value,interpolated
 2026-04-25,Dallas/Fort Worth,96.52,False
 2026-04-25,Boston,99.9,False
 2026-04-25,Orange County,97.88,False
-2026-04-25,San Francisco-East Bay,99.95,False
 2026-04-25,Tampa,94.25,False
+2026-04-25,San Francisco-East Bay,99.95,False
 2026-04-25,Orlando,96.23,False
 2026-04-25,Seattle,98.81,False
 2026-04-25,New York,98.22,False
 2026-04-25,Philadelphia,98.82,False
-2026-04-25,Austin,97.66,False
 2026-04-25,Baltimore,98.35,False
+2026-04-25,Austin,97.66,False
 2026-04-25,Salinas/Monterey,95.29,False
 2026-04-25,Nashville,97.32,False
 2026-04-25,Los Angeles,97.48,False
@@ -104,14 +104,14 @@ date,series,value,interpolated
 2026-05-02,Dallas/Fort Worth,96.12,False
 2026-05-02,Boston,100.17,False
 2026-05-02,Orange County,97.38,False
-2026-05-02,San Francisco-East Bay,99.64,False
 2026-05-02,Tampa,94.34,False
+2026-05-02,San Francisco-East Bay,99.64,False
 2026-05-02,Orlando,95.32,False
 2026-05-02,Seattle,98.92,False
 2026-05-02,New York,97.98,False
 2026-05-02,Philadelphia,99.7,False
-2026-05-02,Austin,96.78,False
 2026-05-02,Baltimore,98.28,False
+2026-05-02,Austin,96.78,False
 2026-05-02,Salinas/Monterey,95.28,False
 2026-05-02,Nashville,95.78,False
 2026-05-02,Los Angeles,98.89,False
@@ -124,14 +124,14 @@ date,series,value,interpolated
 2026-05-09,Dallas/Fort Worth,96.08,False
 2026-05-09,Boston,100.14,False
 2026-05-09,Orange County,96.85,False
-2026-05-09,San Francisco-East Bay,99.85,False
 2026-05-09,Tampa,93.33,False
+2026-05-09,San Francisco-East Bay,99.85,False
 2026-05-09,Orlando,94.55,False
 2026-05-09,Seattle,98.7,False
 2026-05-09,New York,98.2,False
 2026-05-09,Philadelphia,99.32,False
-2026-05-09,Austin,99.29,False
 2026-05-09,Baltimore,98.38,False
+2026-05-09,Austin,99.29,False
 2026-05-09,Salinas/Monterey,96.21,False
 2026-05-09,Nashville,94.16,False
 2026-05-09,Los Angeles,99.55,False
@@ -144,14 +144,14 @@ date,series,value,interpolated
 2026-05-16,Dallas/Fort Worth,96.78,False
 2026-05-16,Boston,99.91,False
 2026-05-16,Orange County,97.31,False
-2026-05-16,San Francisco-East Bay,99.72,False
 2026-05-16,Tampa,92.67,False
+2026-05-16,San Francisco-East Bay,99.72,False
 2026-05-16,Orlando,93.83,False
 2026-05-16,Seattle,98.86,False
 2026-05-16,New York,98.07,False
 2026-05-16,Philadelphia,98.97,False
-2026-05-16,Austin,97.77,False
 2026-05-16,Baltimore,97.55,False
+2026-05-16,Austin,97.77,False
 2026-05-16,Salinas/Monterey,95.65,False
 2026-05-16,Nashville,93.09,False
 2026-05-16,Los Angeles,99.41,False
@@ -164,14 +164,14 @@ date,series,value,interpolated
 2026-05-23,Dallas/Fort Worth,96.53,False
 2026-05-23,Boston,99.2,False
 2026-05-23,Orange County,97.45,False
-2026-05-23,San Francisco-East Bay,100.22,False
 2026-05-23,Tampa,92.56,False
+2026-05-23,San Francisco-East Bay,100.22,False
 2026-05-23,Orlando,94.24,False
 2026-05-23,Seattle,98.36,False
 2026-05-23,New York,97.53,False
 2026-05-23,Philadelphia,99.67,False
-2026-05-23,Austin,97.64,False
 2026-05-23,Baltimore,96.96,False
+2026-05-23,Austin,97.64,False
 2026-05-23,Salinas/Monterey,95.69,False
 2026-05-23,Nashville,92.25,False
 2026-05-23,Los Angeles,98.14,False
@@ -184,14 +184,14 @@ date,series,value,interpolated
 2026-05-30,Dallas/Fort Worth,97.03,False
 2026-05-30,Boston,98.31,False
 2026-05-30,Orange County,96.6,False
-2026-05-30,San Francisco-East Bay,100.71,False
 2026-05-30,Tampa,92.66,False
+2026-05-30,San Francisco-East Bay,100.71,False
 2026-05-30,Orlando,94.43,False
 2026-05-30,Seattle,98.64,False
 2026-05-30,New York,97.91,False
 2026-05-30,Philadelphia,99.96,False
-2026-05-30,Austin,97.4,False
 2026-05-30,Baltimore,96.51,False
+2026-05-30,Austin,97.4,False
 2026-05-30,Salinas/Monterey,96.01,False
 2026-05-30,Nashville,91.3,False
 2026-05-30,Los Angeles,97.69,False
@@ -204,14 +204,14 @@ date,series,value,interpolated
 2026-06-06,Dallas/Fort Worth,97.13,False
 2026-06-06,Boston,97.89,False
 2026-06-06,Orange County,97.15,False
-2026-06-06,San Francisco-East Bay,100.58,False
 2026-06-06,Tampa,92.72,False
+2026-06-06,San Francisco-East Bay,100.58,False
 2026-06-06,Orlando,94.64,False
 2026-06-06,Seattle,98.58,False
 2026-06-06,New York,98.31,False
 2026-06-06,Philadelphia,100.19,False
-2026-06-06,Austin,97.5,False
 2026-06-06,Baltimore,96.7,False
+2026-06-06,Austin,97.5,False
 2026-06-06,Salinas/Monterey,95.25,False
 2026-06-06,Nashville,89.92,False
 2026-06-06,Los Angeles,97.1,False
@@ -224,14 +224,14 @@ date,series,value,interpolated
 2026-06-13,Dallas/Fort Worth,96.92,False
 2026-06-13,Boston,96.41,False
 2026-06-13,Orange County,96.96,False
-2026-06-13,San Francisco-East Bay,102.48,False
 2026-06-13,Tampa,92.93,False
+2026-06-13,San Francisco-East Bay,102.48,False
 2026-06-13,Orlando,94.26,False
 2026-06-13,Seattle,98.74,False
 2026-06-13,New York,98.17,False
 2026-06-13,Philadelphia,99.96,False
-2026-06-13,Austin,93.66,False
 2026-06-13,Baltimore,96.74,False
+2026-06-13,Austin,93.66,False
 2026-06-13,Salinas/Monterey,94.93,False
 2026-06-13,Nashville,88.59,False
 2026-06-13,Los Angeles,95.88,False
@@ -244,14 +244,14 @@ date,series,value,interpolated
 2026-06-20,Dallas/Fort Worth,96.3,False
 2026-06-20,Boston,95.94,False
 2026-06-20,Orange County,96.07,False
-2026-06-20,San Francisco-East Bay,104.28,False
 2026-06-20,Tampa,92.22,False
+2026-06-20,San Francisco-East Bay,104.28,False
 2026-06-20,Orlando,93.53,False
 2026-06-20,Seattle,97.22,False
 2026-06-20,New York,98.67,False
 2026-06-20,Philadelphia,98.36,False
-2026-06-20,Austin,93.22,False
 2026-06-20,Baltimore,95.42,False
+2026-06-20,Austin,93.22,False
 2026-06-20,Salinas/Monterey,94.28,False
 2026-06-20,Nashville,88.67,False
 2026-06-20,Los Angeles,94.5,False
@@ -264,14 +264,14 @@ date,series,value,interpolated
 2026-06-27,Dallas/Fort Worth,95.5,True
 2026-06-27,Boston,95.8175,True
 2026-06-27,Orange County,95.8325,True
-2026-06-27,San Francisco-East Bay,104.3275,True
 2026-06-27,Tampa,91.6725,True
+2026-06-27,San Francisco-East Bay,104.3275,True
 2026-06-27,Orlando,93.58,True
 2026-06-27,Seattle,96.585,True
 2026-06-27,New York,99.025,True
 2026-06-27,Philadelphia,97.74,True
-2026-06-27,Austin,92.2,True
 2026-06-27,Baltimore,93.8225,True
+2026-06-27,Austin,92.2,True
 2026-06-27,Salinas/Monterey,93.6875,True
 2026-06-27,Nashville,88.0175,True
 2026-06-27,Los Angeles,93.98,True
@@ -284,14 +284,14 @@ date,series,value,interpolated
 2026-07-04,Dallas/Fort Worth,94.7,True
 2026-07-04,Boston,95.695,True
 2026-07-04,Orange County,95.595,True
-2026-07-04,San Francisco-East Bay,104.375,True
 2026-07-04,Tampa,91.125,True
+2026-07-04,San Francisco-East Bay,104.375,True
 2026-07-04,Orlando,93.63,True
 2026-07-04,Seattle,95.95,True
 2026-07-04,New York,99.38,True
 2026-07-04,Philadelphia,97.12,True
-2026-07-04,Austin,91.18,True
 2026-07-04,Baltimore,92.225,True
+2026-07-04,Austin,91.18,True
 2026-07-04,Salinas/Monterey,93.095,True
 2026-07-04,Nashville,87.365,True
 2026-07-04,Los Angeles,93.46,True
@@ -304,14 +304,14 @@ date,series,value,interpolated
 2026-07-11,Dallas/Fort Worth,93.9,True
 2026-07-11,Boston,95.5725,True
 2026-07-11,Orange County,95.3575,True
-2026-07-11,San Francisco-East Bay,104.4225,True
 2026-07-11,Tampa,90.5775,True
+2026-07-11,San Francisco-East Bay,104.4225,True
 2026-07-11,Orlando,93.68,True
 2026-07-11,Seattle,95.315,True
 2026-07-11,New York,99.735,True
 2026-07-11,Philadelphia,96.5,True
-2026-07-11,Austin,90.16,True
 2026-07-11,Baltimore,90.6275,True
+2026-07-11,Austin,90.16,True
 2026-07-11,Salinas/Monterey,92.5025,True
 2026-07-11,Nashville,86.7125,True
 2026-07-11,Los Angeles,92.94,True
@@ -324,14 +324,14 @@ date,series,value,interpolated
 2026-07-18,Dallas/Fort Worth,93.1,False
 2026-07-18,Boston,95.45,False
 2026-07-18,Orange County,95.12,False
-2026-07-18,San Francisco-East Bay,104.47,False
 2026-07-18,Tampa,90.03,False
+2026-07-18,San Francisco-East Bay,104.47,False
 2026-07-18,Orlando,93.73,False
 2026-07-18,Seattle,94.68,False
 2026-07-18,New York,100.09,False
 2026-07-18,Philadelphia,95.88,False
-2026-07-18,Austin,89.14,False
 2026-07-18,Baltimore,89.03,False
+2026-07-18,Austin,89.14,False
 2026-07-18,Salinas/Monterey,91.91,False
 2026-07-18,Nashville,86.06,False
 2026-07-18,Los Angeles,92.42,False
@@ -344,14 +344,14 @@ date,series,value,interpolated
 2026-07-25,Dallas/Fort Worth,92.105,True
 2026-07-25,Boston,95.035,True
 2026-07-25,Orange County,94.52,True
-2026-07-25,San Francisco-East Bay,103.22,True
 2026-07-25,Tampa,89.325,True
+2026-07-25,San Francisco-East Bay,103.22,True
 2026-07-25,Orlando,92.915,True
 2026-07-25,Seattle,93.485,True
 2026-07-25,New York,99.46,True
 2026-07-25,Philadelphia,95.265,True
-2026-07-25,Austin,89.085,True
 2026-07-25,Baltimore,88.165,True
+2026-07-25,Austin,89.085,True
 2026-07-25,Salinas/Monterey,91.26,True
 2026-07-25,Nashville,86.075,True
 2026-07-25,Los Angeles,91.49,True
@@ -364,14 +364,14 @@ date,series,value,interpolated
 2026-08-01,Dallas/Fort Worth,91.11,False
 2026-08-01,Boston,94.62,False
 2026-08-01,Orange County,93.92,False
-2026-08-01,San Francisco-East Bay,101.97,False
 2026-08-01,Tampa,88.62,False
+2026-08-01,San Francisco-East Bay,101.97,False
 2026-08-01,Orlando,92.1,False
 2026-08-01,Seattle,92.29,False
 2026-08-01,New York,98.83,False
 2026-08-01,Philadelphia,94.65,False
-2026-08-01,Austin,89.03,False
 2026-08-01,Baltimore,87.3,False
+2026-08-01,Austin,89.03,False
 2026-08-01,Salinas/Monterey,90.61,False
 2026-08-01,Nashville,86.09,False
 2026-08-01,Los Angeles,90.56,False
@@ -384,14 +384,14 @@ date,series,value,interpolated
 2026-08-08,Dallas/Fort Worth,89.62,False
 2026-08-08,Boston,93.68,False
 2026-08-08,Orange County,94.44,False
-2026-08-08,San Francisco-East Bay,99.99,False
 2026-08-08,Tampa,88.13,False
+2026-08-08,San Francisco-East Bay,99.99,False
 2026-08-08,Orlando,91.01,False
 2026-08-08,Seattle,90.02,False
 2026-08-08,New York,98.37,False
 2026-08-08,Philadelphia,93.17,False
-2026-08-08,Austin,88.8,False
 2026-08-08,Baltimore,86.78,False
+2026-08-08,Austin,88.8,False
 2026-08-08,Salinas/Monterey,90.65,False
 2026-08-08,Nashville,85.68,False
 2026-08-08,Los Angeles,91.23,False
@@ -404,14 +404,14 @@ date,series,value,interpolated
 2026-08-15,Dallas/Fort Worth,88.96,False
 2026-08-15,Boston,92.33,False
 2026-08-15,Orange County,93.84,False
-2026-08-15,San Francisco-East Bay,98.69,False
 2026-08-15,Tampa,86.5,False
+2026-08-15,San Francisco-East Bay,98.69,False
 2026-08-15,Orlando,89.32,False
 2026-08-15,Seattle,88.59,False
 2026-08-15,New York,98.33,False
 2026-08-15,Philadelphia,91.7,False
-2026-08-15,Austin,87.85,False
 2026-08-15,Baltimore,85.57,False
+2026-08-15,Austin,87.85,False
 2026-08-15,Salinas/Monterey,91.19,False
 2026-08-15,Nashville,85.82,False
 2026-08-15,Los Angeles,91.51,False
@@ -424,14 +424,14 @@ date,series,value,interpolated
 2026-08-22,Dallas/Fort Worth,88.79,False
 2026-08-22,Boston,91.04,False
 2026-08-22,Orange County,93.41,False
-2026-08-22,San Francisco-East Bay,97.53,False
 2026-08-22,Tampa,85.45,False
+2026-08-22,San Francisco-East Bay,97.53,False
 2026-08-22,Orlando,88.42,False
 2026-08-22,Seattle,87.89,False
 2026-08-22,New York,97.69,False
 2026-08-22,Philadelphia,91.06,False
-2026-08-22,Austin,86.59,False
 2026-08-22,Baltimore,85.27,False
+2026-08-22,Austin,86.59,False
 2026-08-22,Salinas/Monterey,90.91,False
 2026-08-22,Nashville,85.32,False
 2026-08-22,Los Angeles,91.08,False
@@ -444,14 +444,14 @@ date,series,value,interpolated
 2026-08-29,Dallas/Fort Worth,88.57,False
 2026-08-29,Boston,89.95,False
 2026-08-29,Orange County,92.55,False
-2026-08-29,San Francisco-East Bay,96.8,False
 2026-08-29,Tampa,84.53,False
+2026-08-29,San Francisco-East Bay,96.8,False
 2026-08-29,Orlando,88.28,False
 2026-08-29,Seattle,85.79,False
 2026-08-29,New York,97.32,False
 2026-08-29,Philadelphia,90.6,False
-2026-08-29,Austin,85.08,False
 2026-08-29,Baltimore,85.35,False
+2026-08-29,Austin,85.08,False
 2026-08-29,Salinas/Monterey,92.14,False
 2026-08-29,Nashville,86.33,False
 2026-08-29,Los Angeles,90.31,False
@@ -464,14 +464,14 @@ date,series,value,interpolated
 2026-09-05,Dallas/Fort Worth,87.91,False
 2026-09-05,Boston,89.3,False
 2026-09-05,Orange County,91.77,False
-2026-09-05,San Francisco-East Bay,95.96,False
 2026-09-05,Tampa,84.8,False
+2026-09-05,San Francisco-East Bay,95.96,False
 2026-09-05,Orlando,88.33,False
 2026-09-05,Seattle,83.96,False
 2026-09-05,New York,97.08,False
 2026-09-05,Philadelphia,89.26,False
-2026-09-05,Austin,84.54,False
 2026-09-05,Baltimore,85.52,False
+2026-09-05,Austin,84.54,False
 2026-09-05,Salinas/Monterey,93.0,False
 2026-09-05,Nashville,86.84,False
 2026-09-05,Los Angeles,89.88,False
@@ -484,18 +484,17 @@ date,series,value,interpolated
 2026-09-12,Dallas/Fort Worth,87.52,False
 2026-09-12,Boston,88.68,False
 2026-09-12,Orange County,91.69,False
-2026-09-12,San Francisco-East Bay,95.92,False
 2026-09-12,Tampa,84.99,False
+2026-09-12,San Francisco-East Bay,95.92,False
 2026-09-12,Orlando,88.08,False
 2026-09-12,Seattle,84.85,False
 2026-09-12,New York,96.96,False
 2026-09-12,Philadelphia,88.44,False
-2026-09-12,Austin,85.06,False
 2026-09-12,Baltimore,85.45,False
+2026-09-12,Austin,85.06,False
 2026-09-12,Salinas/Monterey,92.6,False
 2026-09-12,Nashville,87.03,False
 2026-09-12,Los Angeles,89.78,False
-2026-09-12,Richmond,100.0,False
 2026-09-12,Portland,81.79,False
 2026-09-12,Miami/Fort Lauderdale,86.78,False
 2026-09-12,San Diego,79.39,False
@@ -505,19 +504,40 @@ date,series,value,interpolated
 2026-09-19,Dallas/Fort Worth,87.35,False
 2026-09-19,Boston,87.3,False
 2026-09-19,Orange County,91.41,False
-2026-09-19,San Francisco-East Bay,95.48,False
 2026-09-19,Tampa,85.06,False
+2026-09-19,San Francisco-East Bay,95.48,False
 2026-09-19,Orlando,87.54,False
 2026-09-19,Seattle,82.97,False
 2026-09-19,New York,97.17,False
 2026-09-19,Philadelphia,88.47,False
-2026-09-19,Austin,84.82,False
 2026-09-19,Baltimore,85.31,False
+2026-09-19,Austin,84.82,False
 2026-09-19,Salinas/Monterey,93.26,False
 2026-09-19,Nashville,86.63,False
 2026-09-19,Los Angeles,89.53,False
-2026-09-19,Richmond,99.57,False
+2026-09-19,Richmond,100.0,False
 2026-09-19,Portland,79.77,False
 2026-09-19,Miami/Fort Lauderdale,86.01,False
 2026-09-19,San Diego,79.56,False
 2026-09-19,Denver,88.98,False
+2026-09-26,"Washington, DC",87.04,False
+2026-09-26,Inland Empire,91.05,False
+2026-09-26,Dallas/Fort Worth,86.94,False
+2026-09-26,Boston,85.8,False
+2026-09-26,Orange County,91.98,False
+2026-09-26,Tampa,87.63,False
+2026-09-26,San Francisco-East Bay,95.72,False
+2026-09-26,Orlando,89.31,False
+2026-09-26,Seattle,82.96,False
+2026-09-26,New York,97.56,False
+2026-09-26,Philadelphia,87.9,False
+2026-09-26,Baltimore,84.55,False
+2026-09-26,Austin,84.24,False
+2026-09-26,Salinas/Monterey,91.86,False
+2026-09-26,Nashville,89.0,False
+2026-09-26,Los Angeles,89.65,False
+2026-09-26,Richmond,100.53,False
+2026-09-26,Portland,80.42,False
+2026-09-26,Miami/Fort Lauderdale,84.66,False
+2026-09-26,San Diego,80.34,False
+2026-09-26,Denver,92.53,False

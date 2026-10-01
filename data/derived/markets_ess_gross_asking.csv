@@ -255,3 +255,13 @@ date,series,value,interpolated
 2026-09-19,Santa Barbara,101.21,False
 2026-09-19,Salinas/Monterey,100.02,False
 2026-09-19,Denver,112.22,False
+2026-09-26,Seattle,93.95,False
+2026-09-26,Los Angeles,92.33,False
+2026-09-26,San Jose,102.15,False
+2026-09-26,San Francisco-East Bay,104.72,False
+2026-09-26,Orange County,101.03,False
+2026-09-26,San Diego,99.48,False
+2026-09-26,San Francisco,100.29,False
+2026-09-26,Santa Barbara,101.27,False
+2026-09-26,Salinas/Monterey,98.13,False
+2026-09-26,Denver,109.68,False

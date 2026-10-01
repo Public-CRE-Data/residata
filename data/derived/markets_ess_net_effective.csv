@@ -246,3 +246,13 @@ date,series,value,interpolated
 2026-09-19,Santa Barbara,103.95,False
 2026-09-19,Salinas/Monterey,104.9,False
 2026-09-19,Denver,112.22,False
+2026-09-26,Seattle,86.72,False
+2026-09-26,Los Angeles,89.59,False
+2026-09-26,San Jose,103.1,False
+2026-09-26,San Francisco-East Bay,104.82,False
+2026-09-26,Orange County,98.38,False
+2026-09-26,San Diego,98.07,False
+2026-09-26,San Francisco,99.76,False
+2026-09-26,Santa Barbara,104.01,False
+2026-09-26,Salinas/Monterey,110.28,False
+2026-09-26,Denver,109.68,False
