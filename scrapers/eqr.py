@@ -31,6 +31,7 @@ import sys
 import time
 from datetime import date, datetime
 from typing import Optional
+from urllib.parse import urljoin, urlparse
 
 import pandas as pd
 
@@ -172,16 +173,27 @@ def get_communities(page) -> list[dict]:
             continue
 
         new_count = 0
+        foreign = 0
         for p in props:
             pid = p.get("Id")
             if pid is None or pid in seen:
+                continue
+
+            # Since early Sep 2026 the market pages also list AvalonBay
+            # communities, with absolute URLs to avaloncommunities.com.
+            # Prefixing BASE_URL to those produced unreachable URLs, and
+            # scraping them at all would double-count AVB (scraped separately).
+            raw_url = (p.get("Url") or "").strip()
+            host = urlparse(raw_url).netloc.lower()
+            if host and not host.endswith("equityapartments.com"):
+                foreign += 1
                 continue
 
             coords = p.get("Coordinates") or {}
             seen[pid] = {
                 "id":        pid,
                 "name":      (p.get("Name") or "").strip(),
-                "url":       BASE_URL + (p.get("Url") or ""),
+                "url":       urljoin(BASE_URL + "/", raw_url),
                 "address":   (p.get("Address") or "").strip(),
                 "city":      (p.get("City") or "").strip(),
                 "state":     (p.get("State") or "").strip(),
@@ -192,7 +204,8 @@ def get_communities(page) -> list[dict]:
             }
             new_count += 1
 
-        logger.info(f"    {len(props)} properties ({new_count} new) → {len(seen)} total")
+        logger.info(f"    {len(props)} properties ({new_count} new, "
+                    f"{foreign} cross-listed from other REITs skipped) → {len(seen)} total")
         time.sleep(1.0)
 
     return list(seen.values())
