@@ -444,6 +444,80 @@ def build_research_charts():
         logger.error(f"  build_charts.py failed to run: {type(e).__name__}: {e}")
 
 
+def open_workbooks():
+    """Step 8: Open the freshly built workbooks in the default app.
+
+    Deliberately the last thing the pipeline does: opening a workbook is a
+    convenience, so a missing or broken spreadsheet app must never affect the
+    data. Every failure here is logged and swallowed.
+
+    Files are chosen by modification time, not by the date in the filename:
+    build_excel.py names the analysis workbook after the prior Saturday even
+    when it contains the current week, so sorting by name picks the wrong file.
+
+    Set REIT_NO_OPEN=1 to suppress (headless runs, CI).
+    """
+    logger.info("=" * 60)
+    logger.info("  STEP 8: Opening workbooks")
+    logger.info("=" * 60)
+
+    if os.environ.get("REIT_NO_OPEN"):
+        logger.info("  REIT_NO_OPEN set - skipping.")
+        return
+
+    newest = lambda paths: max(paths, key=lambda f: f.stat().st_mtime, default=None)
+    targets = [
+        newest(BASE_DIR.glob("REIT_Rental_Analysis_*.xlsx")),
+        newest(OUTPUT_DIR.glob("REIT_Research_Charts_*.xlsx")),
+    ]
+    targets = [t for t in targets if t is not None]
+
+    if not targets:
+        logger.warning("  No workbooks found to open.")
+        return
+
+    for t in targets:
+        try:
+            result = subprocess.run(
+                ["/usr/bin/open", str(t)],
+                capture_output=True, text=True, timeout=60,
+            )
+            if result.returncode != 0:
+                logger.warning(
+                    f"  Could not open {t.name}: "
+                    f"{result.stderr.strip()[:160] or 'no spreadsheet app installed?'}"
+                )
+                continue
+            logger.info(f"  Handed to macOS: {t.name}")
+        except Exception as e:
+            logger.warning(f"  Could not open {t.name}: {type(e).__name__}: {e}")
+
+    # `open` exits 0 once it has handed the file to LaunchServices - it does
+    # NOT mean an app actually started. Gatekeeper refusing a quarantined or
+    # broken-signature app looks identical to success from here, so confirm
+    # by looking for a running process rather than trusting the exit code.
+    import time
+    # Match the full executable path, not the bare process name: unrelated
+    # apps ship binaries with colliding names (a third-party "Numbers Creator
+    # Studio" here runs an executable called "Numbers"), and matching on name
+    # alone reports success while nothing actually opened.
+    APP_BINARIES = [
+        ("LibreOffice", "/Applications/LibreOffice.app/Contents/MacOS/soffice"),
+        ("Excel", "/Applications/Microsoft Excel.app/Contents/MacOS/Microsoft Excel"),
+        ("Numbers", "/System/Applications/Numbers.app/Contents/MacOS/Numbers"),
+    ]
+    for _ in range(20):
+        time.sleep(1)
+        for name, binary in APP_BINARIES:
+            probe = subprocess.run(["/usr/bin/pgrep", "-f", f"^{binary}"],
+                                   capture_output=True, text=True)
+            if probe.returncode == 0:
+                logger.info(f"  Spreadsheet app is running ({name}).")
+                return
+    logger.warning("  No spreadsheet app started - workbooks were written but "
+                   "not opened. Check that the app launches manually.")
+
+
 def main():
     logger.info(f"Weekly REIT pipeline started — {today}")
     logger.info(f"Base directory: {BASE_DIR}")
@@ -505,6 +579,9 @@ def main():
     logger.info("=" * 60)
     logger.info(f"  PIPELINE COMPLETE — {today}")
     logger.info("=" * 60)
+
+    # Step 8: Convenience only, and last on purpose - see open_workbooks().
+    open_workbooks()
 
 
 if __name__ == "__main__":
