@@ -124,7 +124,7 @@ date,series,value,interpolated
 2026-09-19,CPT,94.98,False
 2026-09-19,EQR,93.47,False
 2026-09-19,INVH,95.0,False
-2026-09-19,MAA,90.52,True
+2026-09-19,MAA,90.52,False
 2026-09-26,AMH,92.54,False
 2026-09-26,CPT,95.17,False
 2026-09-26,EQR,92.5,False

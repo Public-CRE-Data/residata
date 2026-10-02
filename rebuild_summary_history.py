@@ -61,6 +61,21 @@ PARTIAL_SCRAPES = {
 }
 
 
+# Weeks a REIT has no data for at all, for a known and recorded reason. This
+# is NOT the same as PARTIAL_SCRAPES: there is no file to exclude, the scrape
+# simply never produced one. Listing the week here opts it into the same
+# smoothing, so the gap is spread rather than booked onto the following week.
+# Keys are (reit, week anchor) -- the Saturday, not a scrape date.
+MISSING_SCRAPES = {
+    # maac.com returned 403 to the whole domain from a non-US connection, so
+    # the 2026-09-19 run collected 0 MAA rows and saved no file. The window to
+    # rescrape it closed when the week rolled over. Without smoothing, MAA's
+    # 09-26 same-property change reads -0.971%, roughly double its usual
+    # weekly move, because two weeks land on one.
+    ("MAA", "2026-09-19"),
+}
+
+
 def _straddles_methodology_break(reit, prev_d, curr_d):
     """True if this pair spans a change in how the REIT's rent was measured."""
     brk = METHODOLOGY_BREAKS.get(reit)
@@ -580,7 +595,8 @@ def _smooth_skipped_weeks(hist: pd.DataFrame) -> pd.DataFrame:
       * cross-sectional levels (avg rent, counts, concession rate) are
         linearly interpolated per (macro_market, beds).
 
-    Scope: only gaps made by excluding PARTIAL_SCRAPES are filled. Organic
+    Scope: only gaps made by excluding PARTIAL_SCRAPES, or declared in
+    MISSING_SCRAPES, are filled. Other organic
     empty weeks (e.g. AMH/INVH 2026-06-20) are published history and are left
     as they were; smoothing them would be a separate, deliberate decision.
 
@@ -598,6 +614,7 @@ def _smooth_skipped_weeks(hist: pd.DataFrame) -> pd.DataFrame:
     keys = ["macro_market", "beds"]
     new_rows = []
     partial_weeks = {(r, saturday_anchor(pd.Timestamp(d))) for r, d in PARTIAL_SCRAPES}
+    partial_weeks |= {(r, pd.Timestamp(d)) for r, d in MISSING_SCRAPES}
 
     for reit in hist["reit"].unique():
         have = set(hist.loc[hist["reit"] == reit, "scrape_date"])

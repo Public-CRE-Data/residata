@@ -197,7 +197,7 @@ date,series,value,interpolated
 2026-09-19,EQR,87.58,False
 2026-09-19,ESS,112.22,False
 2026-09-19,INVH,91.15,False
-2026-09-19,MAA,95.205,True
+2026-09-19,MAA,95.19,False
 2026-09-19,UDR,88.98,False
 2026-09-26,AMH,95.2,False
 2026-09-26,AVB,86.43,False

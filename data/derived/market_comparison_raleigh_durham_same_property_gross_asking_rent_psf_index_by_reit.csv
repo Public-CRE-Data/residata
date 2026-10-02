@@ -100,7 +100,7 @@ date,series,value,interpolated
 2026-09-19,AMH,94.29,False
 2026-09-19,AVB,90.22,False
 2026-09-19,CPT,96.58,False
-2026-09-19,MAA,90.56,True
+2026-09-19,MAA,90.56,False
 2026-09-26,AMH,94.22,False
 2026-09-26,AVB,89.9,False
 2026-09-26,CPT,95.65,False

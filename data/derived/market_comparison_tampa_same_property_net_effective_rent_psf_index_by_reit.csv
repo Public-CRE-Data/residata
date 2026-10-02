@@ -123,7 +123,7 @@ date,series,value,interpolated
 2026-09-19,AMH,90.58,False
 2026-09-19,CPT,92.65,False
 2026-09-19,INVH,92.38,False
-2026-09-19,MAA,90.635,True
+2026-09-19,MAA,90.63,False
 2026-09-19,UDR,87.71,False
 2026-09-26,AMH,90.2,False
 2026-09-26,CPT,91.99,False
